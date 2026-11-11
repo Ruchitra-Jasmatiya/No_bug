@@ -1,0 +1,48 @@
+# Local development stack: Redis + API + testing worker.
+# The database is Supabase (or any Postgres you point SUPABASE_DB_URL at); see README "Local database".
+#   cp .env.example .env   # then edit it
+#   docker compose up --build
+services:
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: { context: ., dockerfile: api/Dockerfile }
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: development
+      PORT: "4000"
+    ports: ["4000:4000"]
+    depends_on:
+      redis: { condition: service_healthy }
+
+  worker:
+    build: { context: ., dockerfile: worker/Dockerfile }
+    env_file: .env
+    environment:
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: development
+      PORT: "4100"
+    init: true # reaps zombie browser processes
+    ipc: host # Chromium needs a large /dev/shm
+    shm_size: "1gb"
+    # Isolate the browser: no access to the host, and ideally an egress firewall (see README "Network isolation").
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      redis: { condition: service_healthy }
+    deploy:
+      resources:
+        limits: { cpus: "2.0", memory: 2g }
+
+volumes:
+  redis-data:

@@ -1,0 +1,31 @@
+{
+  "name": "no-bugs-allowed",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NO BUGS ALLOWED \u2014 AI-powered website testing and bug detection platform",
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "api",
+    "worker",
+    "web"
+  ],
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "build": "npm run build -w shared && npm run build -w api && npm run build -w worker && npm run build -w web",
+    "build:shared": "npm run build -w shared",
+    "typecheck": "npm run build -w shared && npm run typecheck -w api && npm run typecheck -w worker && npm run typecheck -w web",
+    "test": "npm run build -w shared && npm run test -w shared && npm run test -w api && npm run test -w worker && npm run test -w web",
+    "dev:api": "npm run dev -w api",
+    "dev:worker": "npm run dev -w worker",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:migrate:local": "node scripts/migrate.mjs --local",
+    "test:e2e": "node --import tsx --test --test-concurrency=1 e2e/*.test.ts",
+    "dev:web": "npm run dev -w web"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}
