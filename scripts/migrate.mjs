@@ -23,7 +23,7 @@ if (!local && /localhost|127\.0\.0\.1/.test(url) === false && process.env.NODE_E
   process.exit(1);
 }
 
-const client = new pg.Client({ connectionString: url, ssl: /supabase\.(co|com)/.test(url) ? { rejectUnauthorized: true } : undefined });
+const client = new pg.Client({ connectionString: url, ssl: /supabase\.(co|com)|pooler\./.test(url) ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' } : undefined });
 await client.connect();
 
 async function applyDir(dir, tag) {

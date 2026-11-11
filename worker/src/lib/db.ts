@@ -8,6 +8,6 @@ export function createPool(connectionString: string, max = 10): pg.Pool {
     max,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
-    ssl: needsTls ? { rejectUnauthorized: true } : undefined,
+    ssl: needsTls ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' } : undefined,
   });
 }
