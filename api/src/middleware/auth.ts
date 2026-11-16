@@ -1,5 +1,5 @@
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
-import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
+import { createRemoteJWKSet, decodeProtectedHeader, jwtVerify, type JWTVerifyGetKey } from 'jose';
 import type pg from 'pg';
 import type { ApiConfig } from '../config.js';
 import { forbidden, unauthorized } from '../lib/errors.js';
@@ -33,9 +33,17 @@ export function createAuthenticator(config: Pick<ApiConfig, 'SUPABASE_URL' | 'SU
   async function verify(token: string): Promise<string> {
     const opts = { audience: 'authenticated', ...(issuer ? { issuer } : {}) };
     // Algorithms are pinned per key type, so an attacker cannot downgrade to "none" or confuse HS/RS keys.
-    const { payload } = secret
-      ? await jwtVerify(token, secret, { ...opts, algorithms: ['HS256'] })
-      : await jwtVerify(token, jwks!, { ...opts, algorithms: ['RS256', 'ES256', 'EdDSA'] });
+    // The key type is chosen from the token's own header: legacy projects sign HS256 (shared secret), projects
+    // with Supabase's newer signing keys sign ES256/RS256 (public keys from JWKS).
+    const alg = decodeProtectedHeader(token).alg;
+    let payload;
+    if (alg === 'HS256') {
+      if (!secret) throw new Error('HS256 token but SUPABASE_JWT_SECRET is not set');
+      ({ payload } = await jwtVerify(token, secret, { ...opts, algorithms: ['HS256'] }));
+    } else {
+      if (!jwks) throw new Error('asymmetric token but SUPABASE_URL is not set');
+      ({ payload } = await jwtVerify(token, jwks, { ...opts, algorithms: ['RS256', 'ES256', 'EdDSA'] }));
+    }
     if (!payload.sub) throw new Error('missing subject');
     return payload.sub;
   }
@@ -48,7 +56,8 @@ export function createAuthenticator(config: Pick<ApiConfig, 'SUPABASE_URL' | 'SU
       let userId: string;
       try {
         userId = await verify(match[1]!);
-      } catch {
+      } catch (e) {
+        console.warn(JSON.stringify({ level: 40, service: 'nba-api', msg: 'access token rejected', reason: String((e as Error)?.message ?? e) }));
         throw unauthorized('Your session has expired. Please sign in again.');
       }
       const { rows } = await pool.query<{ email: string; account_status: string; is_admin: boolean }>(

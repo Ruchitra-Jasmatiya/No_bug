@@ -1,8 +1,9 @@
-import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, Check, ChevronDown, CircleDashed, Clock, Loader2, MinusCircle, RotateCw, Square, WifiOff, X } from 'lucide-react';
+import { AnimatePresence, m as motion } from 'framer-motion';
+import { Clock, RotateCw, Square, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { LogDTO, ModuleStateDTO, ProgressDTO } from '@nba/shared';
+import type { LogDTO, ProgressDTO } from '@nba/shared';
+import { TestActivity } from '../components/TestActivity';
 import { Mascot } from '../components/Mascot';
 import { ApiError, get, post } from '../lib/api';
 import { ACTIVE_KEY } from '../lib/auth';
@@ -22,55 +23,6 @@ function remember(id: string | null) {
   }
 }
 
-function ModuleIcon({ status }: { status: string }) {
-  if (status === 'running') return <Loader2 size={18} className="spin" aria-hidden />;
-  if (status === 'completed') return <Check size={18} aria-hidden />;
-  if (status === 'failed') return <AlertTriangle size={18} aria-hidden />;
-  if (status === 'skipped' || status === 'blocked') return <MinusCircle size={18} aria-hidden />;
-  return <CircleDashed size={18} aria-hidden />;
-}
-
-function ModuleRow({ m }: { m: ModuleStateDTO }) {
-  const [open, setOpen] = useState(false);
-  const c = m.counts;
-  const detail = m.errorMessage || m.note;
-  const expandable = true;
-  return (
-    <li className={`mod mod-${m.status}`}>
-      <button className="mod-head" onClick={() => setOpen((o) => !o)} aria-expanded={open} disabled={!expandable}>
-        <span className="mod-icon"><ModuleIcon status={m.status} /></span>
-        <span className="grow" style={{ textAlign: 'left' }}>
-          <b>{m.label}</b>
-          <span className="small muted" style={{ display: 'block' }}>
-            {STATUS_LABEL[m.status] ?? m.status}
-            {m.durationMs != null && m.status !== 'pending' ? ` · ${formatDuration(m.durationMs)}` : ''}
-          </span>
-        </span>
-        {m.status !== 'pending' && m.status !== 'running' && (
-          <span className="row small" style={{ gap: 6, flexWrap: 'nowrap' }}>
-            {c.fail > 0 && <span className="tag tag-bad">{c.fail} failed</span>}
-            {c.warning > 0 && <span className="tag tag-warn">{c.warning} warn</span>}
-            {c.pass > 0 && <span className="tag">{c.pass} passed</span>}
-          </span>
-        )}
-        <ChevronDown size={18} className={open ? 'rot' : ''} aria-hidden />
-      </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden' }}>
-            <div className="mod-body small">
-              {detail ? <p style={{ margin: 0 }}>{detail}</p> : <p className="muted" style={{ margin: 0 }}>{m.status === 'pending' ? 'Waiting for its turn.' : m.status === 'running' ? 'Running now…' : 'Finished with no extra notes.'}</p>}
-              <p className="muted" style={{ margin: '6px 0 0' }}>
-                Checks: {c.pass} passed · {c.fail} failed · {c.warning} warnings · {c.info} info{c.skipped + c.blocked ? ` · ${c.skipped + c.blocked} not run` : ''}
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </li>
-  );
-}
-
 export default function TestRun() {
   const { id = '' } = useParams();
   const nav = useNavigate();
@@ -85,7 +37,6 @@ export default function TestRun() {
   const [busy, setBusy] = useState<string | null>(null);
   const cursor = useRef(0);
   const failures = useRef(0);
-  const logBox = useRef<HTMLDivElement>(null);
   useDocumentTitle(data ? `Testing ${data.job.hostname}` : 'Testing');
 
   const status = data?.job.status;
@@ -151,10 +102,6 @@ export default function TestRun() {
   }, [data, active, id, setJob]);
 
   useEffect(() => () => setJob(null), [setJob]);
-
-  useEffect(() => {
-    logBox.current?.scrollTo({ top: logBox.current.scrollHeight });
-  }, [logs.length]);
 
   // Finished: go to the report.
   useEffect(() => {
@@ -238,7 +185,7 @@ export default function TestRun() {
   if (fatal) {
     return (
       <div className="wrap-narrow page">
-        <div className="empty"><Mascot size={110} mood="alert" /><h1 style={{ fontSize: '2rem' }}>Test not found</h1><p className="muted">{fatal}</p><Link className="btn btn-yellow" to="/dashboard">Go to dashboard</Link></div>
+        <div className="empty"><Mascot size={64} mood="alert" /><h1>Test not found</h1><p className="muted">{fatal}</p><Link className="btn btn-yellow" to="/dashboard">Go to dashboard</Link></div>
       </div>
     );
   }
@@ -249,64 +196,55 @@ export default function TestRun() {
   const end = j.finishedAt ? new Date(j.finishedAt).getTime() : now;
   const total = data.counts;
   const done = data.modules.filter((m) => ['completed', 'failed', 'skipped', 'blocked'].includes(m.status)).length;
-  const mood = j.status === 'completed' ? 'happy' : j.status === 'failed' ? 'alert' : 'thinking';
-
   return (
     <div className="wrap page">
       <AnimatePresence>
         {offline && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} style={{ marginBottom: 16 }}>
-            <Notice kind="error"><WifiOff size={0} aria-hidden />Connection interrupted. Your test progress is saved. Reconnecting…</Notice>
+            <Notice kind="error">Connection interrupted. Your test progress is saved. Reconnecting…</Notice>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <div className="run-head card card-butter">
-        <Mascot size={92} mood={mood} />
-        <div className="grow stack" style={{ ['--gap' as string]: '8px' }}>
-          <p className="label muted" style={{ margin: 0 }}>{STATUS_LABEL[j.status]}</p>
-          <h1 style={{ fontSize: 'clamp(1.5rem,3.6vw,2.2rem)', wordBreak: 'break-all' }}>{j.hostname}</h1>
-          <div className="row small" style={{ gap: 16 }}>
-            <span className="row" style={{ gap: 6 }}><Clock size={15} /> {formatDuration(Math.max(0, end - started))}</span>
-            <span>{done}/{data.modules.length} modules</span>
-            <span>{total.pass} passed · {total.fail} failed · {total.warning} warnings</span>
+      <div className="card run-head">
+        <div style={{ minWidth: 0 }}>
+          <p className="eyebrow">{STATUS_LABEL[j.status]}</p>
+          <h1 className="run-host">{j.hostname}</h1>
+          <div className="row small muted" style={{ gap: 16, marginTop: 6 }}>
+            <span className="row" style={{ gap: 6 }}><Clock size={14} /> {formatDuration(Math.max(0, end - started))}</span>
+            <span>{done} of {data.modules.length} tests finished</span>
           </div>
         </div>
-        <div className="stack" style={{ ['--gap' as string]: '8px', minWidth: 150 }}>
+        <div className="row" style={{ gap: 8 }}>
           {active && <button className="btn btn-ghost" onClick={cancel} disabled={busy === 'cancel' || j.cancelRequested}><Square size={16} /> {j.cancelRequested ? 'Cancelling…' : 'Cancel test'}</button>}
+          {active && <button className="btn btn-ghost" onClick={() => setOpen(true)}>Ask BUGSY</button>}
           {j.status === 'failed' && <button className="btn btn-yellow" onClick={resume} disabled={busy === 'resume'}><RotateCw size={16} /> Resume test</button>}
           {(j.status === 'failed' || j.status === 'cancelled') && <button className="btn btn-ghost" onClick={startAgain} disabled={busy === 'restart'}>Start again</button>}
           {j.status === 'cancelled' && data.modules.some((m) => m.status === 'completed') && <Link className="btn btn-ghost" to={`/reports/${id}`}>View partial report</Link>}
         </div>
-      </div>
-
-      <div style={{ margin: '22px 0' }}>
-        <div className="row spread small" style={{ marginBottom: 6 }}><b>{j.status === 'queued' ? 'Waiting for a free test runner…' : j.status === 'completed' ? 'Finished' : 'Progress'}</b><b>{j.progressPct}%</b></div>
-        <div className="progress" role="progressbar" aria-valuenow={j.progressPct} aria-valuemin={0} aria-valuemax={100} aria-label="Test progress"><i style={{ width: `${j.progressPct}%` }} /></div>
-        {active && <p className="small muted" style={{ marginTop: 8 }}>You can leave this page. The test keeps running and your progress is saved; come back any time from the dashboard.</p>}
-      </div>
-
-      {j.status === 'failed' && <Notice kind="error">{j.errorMessage ?? 'This test could not be completed.'} Finished modules are saved, so resuming will not repeat them.</Notice>}
-      {j.status === 'completed' && <Notice kind="ok">Test finished. Opening your report… <Link to={`/reports/${id}`}>Open now</Link></Notice>}
-
-      <div className="run-grid">
-        <section aria-label="Modules">
-          <h2 style={{ fontSize: '1.3rem', marginBottom: 12 }}>What’s being tested</h2>
-          <ul className="mods">{data.modules.map((m) => <ModuleRow key={m.moduleId} m={m} />)}</ul>
-        </section>
-        <section aria-label="Live log">
-          <div className="row spread"><h2 style={{ fontSize: '1.3rem', marginBottom: 12 }}>Live log</h2>{active && <Spinner label="Live" />}</div>
-          <div className="logbox mono" ref={logBox} role="log" aria-live="off" tabIndex={0}>
-            {logs.length === 0 && <span className="muted">Waiting for the first message…</span>}
-            {logs.map((l) => (
-              <div key={l.id} className={`log log-${l.level}`}>
-                <time>{new Date(l.createdAt).toLocaleTimeString()}</time> {l.message}
-              </div>
-            ))}
+        <div style={{ gridColumn: '1 / -1' }}>
+          <div className="row spread small" style={{ marginBottom: 6 }}>
+            <b>{j.status === 'queued' ? 'Waiting for a free test runner…' : j.status === 'completed' ? 'Finished' : 'Progress'}</b>
+            <b>{j.progressPct}%</b>
           </div>
-          {active && <button className="btn btn-ghost btn-sm" style={{ marginTop: 10 }} onClick={() => setOpen(true)}>Ask BUGSY while you wait</button>}
-        </section>
+          <div className="progress" role="progressbar" aria-valuenow={j.progressPct} aria-valuemin={0} aria-valuemax={100} aria-label="Test progress"><i style={{ width: `${j.progressPct}%` }} /></div>
+          <div className="kpis">
+            <div className="kpi"><b>{done}/{data.modules.length}</b><span>Tests finished</span></div>
+            <div className="kpi kpi-pass"><b>{total.pass}</b><span>Passed</span></div>
+            <div className="kpi kpi-fail"><b>{total.fail}</b><span>Failed</span></div>
+            <div className="kpi kpi-warn"><b>{total.warning}</b><span>Warnings</span></div>
+            <div className="kpi"><b>{total.skipped + total.blocked}</b><span>Not run</span></div>
+          </div>
+          {active && <p className="small muted" style={{ marginTop: 10 }}>You can leave this page. The test keeps running and progress is saved; come back any time from the dashboard.</p>}
+        </div>
       </div>
+
+      <div style={{ marginTop: 16 }} className="stack">
+        {j.status === 'failed' && <Notice kind="error">{j.errorMessage ?? 'This test could not be completed.'} Finished tests are saved, so resuming will not repeat them.</Notice>}
+        {j.status === 'completed' && <Notice kind="ok">Test finished. Opening your report… <Link to={`/reports/${id}`}>Open now</Link></Notice>}
+      </div>
+
+      <TestActivity jobId={id} jobStatus={j.status} modules={data.modules} logs={logs} live={active} />
 
       <Modal open={confirm} onClose={() => setConfirm(false)} title="Your test is still running">
         <p>Refreshing is safe: the test runs on our servers and your progress is saved. You can carry on, or throw this run away and begin a new one.</p>

@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m as motion } from 'framer-motion';
 import { Mail, ShieldCheck } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';

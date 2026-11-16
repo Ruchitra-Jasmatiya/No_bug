@@ -92,6 +92,19 @@ export function createTestsRouter(deps: { pool: pg.Pool; jobs: JobService; auth:
     res.json(body);
   }));
 
+  /**
+   * Every check recorded so far, available while the test is still running (the report endpoint is only
+   * available once it has finished). Results appear as each test module completes. Read-only.
+   */
+  router.get('/:id/results', ah(async (req, res) => {
+    const job = await ownedJob(currentUser(req).id, req.params.id);
+    const { rows } = await pool.query(
+      `select * from public.test_results where job_id = $1 order by module_id, created_at limit 1000`,
+      [job.id],
+    );
+    res.json({ items: rows.map(toResultDTO) });
+  }));
+
   router.post('/:id/resume', ah(async (req, res) => {
     const parsed = idParam(req.params.id);
     if (!parsed.success) throw notFound('Test not found.');

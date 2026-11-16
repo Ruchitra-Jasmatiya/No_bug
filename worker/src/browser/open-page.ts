@@ -37,8 +37,8 @@ export async function withPage<T>(ctx: ModuleContext, opts: OpenPageOptions, fn:
     } catch (err) {
       throw new NavigationFailed(((err as Error).message ?? 'Navigation failed').split('\n')[0]!.slice(0, 300));
     }
-    await page.waitForLoadState('load', { timeout: 15_000 }).catch(() => undefined);
-    await page.waitForLoadState('networkidle', { timeout: 2_500 }).catch(() => undefined);
+    await page.waitForLoadState('load', { timeout: 10_000 }).catch(() => undefined);
+    await page.waitForLoadState('networkidle', { timeout: 1_500 }).catch(() => undefined);
     if (opts.settleMs) await page.waitForTimeout(opts.settleMs);
     return await fn(page);
   } finally {

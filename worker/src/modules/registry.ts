@@ -7,6 +7,8 @@ import { accessibilityModule } from './accessibility.js';
 import { seoModule } from './seo.js';
 import { securityModule } from './security.js';
 import { linksModule } from './links.js';
+import { paginationModule } from './pagination.js';
+import { sitePagesModule } from './site-pages.js';
 import { apiModule } from './api.js';
 import { visualRegressionModule } from './visual-regression.js';
 import { pwaModule } from './pwa.js';
@@ -36,6 +38,8 @@ export const MODULES: Partial<Record<ModuleId, TestModule>> = {
   seo: seoModule,
   security: securityModule,
   links_resources: linksModule,
+  pagination: paginationModule,
+  site_pages: sitePagesModule,
   api: apiModule,
   visual_regression: visualRegressionModule,
   pwa: pwaModule,

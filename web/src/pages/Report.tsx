@@ -1,10 +1,11 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, m as motion } from 'framer-motion';
 import { Bot, ChevronDown, Clipboard, Download, RotateCw, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { BugDTO, ReportDTO } from '@nba/shared';
 import { BarList, Legend, SeverityDonut } from '../components/Charts';
 import { Mascot } from '../components/Mascot';
+import { TestActivity } from '../components/TestActivity';
 import { ApiError, get, post } from '../lib/api';
 import { useBugsy } from '../lib/bugsy';
 import { CATEGORY_LABEL, formatDate, formatDuration, pluralise, SEVERITY_ORDER, STATUS_LABEL } from '../lib/format';
@@ -137,7 +138,7 @@ export default function Report() {
 
   if (error) {
     return (
-      <div className="wrap-narrow page"><div className="empty"><Mascot size={110} mood="alert" /><h1 style={{ fontSize: '2rem' }}>Report unavailable</h1><p className="muted">{error.message}</p><Link className="btn btn-yellow" to="/dashboard">Go to dashboard</Link></div></div>
+      <div className="wrap-narrow page"><div className="empty"><Mascot size={64} mood="alert" /><h1>Report unavailable</h1><p className="muted">{error.message}</p><Link className="btn btn-yellow" to="/dashboard">Go to dashboard</Link></div></div>
     );
   }
   if (!report) return <PageLoader label="Loading your report" />;
@@ -175,11 +176,11 @@ export default function Report() {
 
   return (
     <div className="wrap page">
-      <div className="report-head card card-butter">
-        <Mascot size={96} mood={mood} />
+      <div className="report-head card">
+        <Mascot size={56} mood={mood} />
         <div className="grow stack" style={{ ['--gap' as string]: '8px' }}>
-          <p className="label muted" style={{ margin: 0 }}>Test report · {STATUS_LABEL[j.status]}</p>
-          <h1 style={{ fontSize: 'clamp(1.6rem,4vw,2.4rem)', wordBreak: 'break-all' }}>{j.hostname}</h1>
+          <p className="eyebrow" style={{ margin: 0 }}>Test report · {STATUS_LABEL[j.status]}</p>
+          <h1 className="run-host">{j.hostname}</h1>
           <p className="small muted" style={{ margin: 0 }}>{formatDate(j.finishedAt ?? j.queuedAt)}{duration ? ` · took ${formatDuration(duration)}` : ''} · {j.attempt > 1 ? `resumed ${pluralise(j.attempt - 1, 'time')}` : 'single run'}</p>
           <p style={{ margin: 0, fontWeight: 600 }}>{report.message}</p>
         </div>
@@ -198,19 +199,19 @@ export default function Report() {
 
       <div className="report-grid">
         <section className="card" aria-label="Severity breakdown">
-          <h2 style={{ fontSize: '1.2rem', marginBottom: 14 }}>Issues by severity</h2>
+          <h2 style={{ marginBottom: 14 }}>Issues by severity</h2>
           <div className="row" style={{ gap: 24, justifyContent: 'center' }}>
             <SeverityDonut counts={sevCounts} />
             <Legend counts={sevCounts} />
           </div>
         </section>
         <section className="card" aria-label="Issues by category">
-          <h2 style={{ fontSize: '1.2rem', marginBottom: 14 }}>Issues by category</h2>
+          <h2 style={{ marginBottom: 14 }}>Issues by category</h2>
           <BarList items={catCounts} />
         </section>
         <section className="card" aria-label="Check results">
-          <h2 style={{ fontSize: '1.2rem', marginBottom: 14 }}>Checks performed</h2>
-          <BarList color="var(--butter-deep)" items={[
+          <h2 style={{ marginBottom: 14 }}>Checks performed</h2>
+          <BarList color="var(--yellow-300)" items={[
             { label: 'Passed', value: report.summary.counts.pass },
             { label: 'Failed', value: report.summary.counts.fail },
             { label: 'Warnings', value: report.summary.counts.warning },
@@ -222,7 +223,7 @@ export default function Report() {
 
       <section style={{ marginTop: 34 }} aria-label="Issues">
         <div className="row spread" style={{ marginBottom: 12 }}>
-          <h2 style={{ fontSize: '1.6rem' }}>Issues ({visible.length}{visible.length !== total ? ` of ${total}` : ''})</h2>
+          <h2>Issues ({visible.length}{visible.length !== total ? ` of ${total}` : ''})</h2>
         </div>
         {total > 0 && (
           <div className="stack" style={{ ['--gap' as string]: '10px', marginBottom: 14 }}>
@@ -237,7 +238,7 @@ export default function Report() {
           </div>
         )}
         {total === 0 ? (
-          <div className="card empty"><Mascot size={100} mood="happy" /><h3>No issues detected in the tests performed.</h3><p className="muted">That is not a guarantee the site has no bugs. Review the modules below to see exactly what was covered.</p></div>
+          <div className="card empty"><Mascot size={56} mood="happy" /><h3>No issues detected in the tests performed.</h3><p className="muted">That is not a guarantee the site has no bugs. Review the tests performed below to see exactly what was covered.</p></div>
         ) : visible.length === 0 ? (
           <p className="muted">No issues match these filters.</p>
         ) : (
@@ -245,18 +246,10 @@ export default function Report() {
         )}
       </section>
 
-      <section style={{ marginTop: 34 }} aria-label="Modules">
-        <h2 style={{ fontSize: '1.4rem', marginBottom: 12 }}>What was tested</h2>
-        <div className="table-wrap">
-          <table className="table">
-            <thead><tr><th>Module</th><th>Status</th><th>Passed</th><th>Failed</th><th>Warnings</th><th>Note</th></tr></thead>
-            <tbody>
-              {report.modules.map((m) => (
-                <tr key={m.moduleId}><td><b>{m.label}</b></td><td>{STATUS_LABEL[m.status] ?? m.status}</td><td>{m.counts.pass}</td><td>{m.counts.fail}</td><td>{m.counts.warning}</td><td className="small muted">{m.errorMessage ?? m.note ?? ''}</td></tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <section style={{ marginTop: 34 }} aria-label="Tests performed">
+        <h2 style={{ marginBottom: 4 }}>Tests performed</h2>
+        <p className="small muted">Every test that ran on this site, its real outcome and the checks behind it. Select a test to see its individual checks.</p>
+        <TestActivity jobId={id} jobStatus={j.status} modules={report.modules} />
       </section>
 
       {prev.length > 0 && (

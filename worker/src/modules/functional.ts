@@ -111,12 +111,15 @@ export const functionalModule: TestModule = {
         const internal = [...new Set(nav.filter((h) => h.startsWith(origin) && !h.includes('#')))].slice(0, 6);
         let navBroken = 0;
         const navBad: Array<{ url: string; status: number }> = [];
-        for (const h of internal) {
+        const probeNav = async (h: string): Promise<void> => {
+          const p = await page.context().newPage();
           try {
-            const r = await page.goto(h, { waitUntil: 'domcontentloaded', timeout: 12_000 });
+            const r = await p.goto(h, { waitUntil: 'domcontentloaded', timeout: 10_000 });
             if (r && r.status() >= 400) { navBroken++; navBad.push({ url: h, status: r.status() }); }
           } catch { navBroken++; navBad.push({ url: h, status: 0 }); }
-        }
+          finally { await p.close().catch(() => undefined); }
+        };
+        await Promise.all([0, 1, 2].map(async (lane) => { for (let i = lane; i < internal.length; i += 3) { if (ctx.signal.aborted) return; await probeNav(internal[i]!); } }));
         if (internal.length) {
           out.push(navBroken ? { checkKey: 'navigation', title: 'Navigation menu links', status: 'fail', severity: 'high', confidence: 'confirmed', affectedUrl: navBad[0]!.url, message: `${navBroken} of ${internal.length} navigation link(s) lead to an error page.`, evidence: { broken: navBad }, recommendation: 'Fix or remove the broken navigation destinations.' } : { checkKey: 'navigation', title: 'Navigation menu links', status: 'pass', affectedUrl: startUrl, message: `${internal.length} navigation link(s) opened successfully.` });
         }

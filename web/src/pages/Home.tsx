@@ -1,5 +1,5 @@
-import { motion, useReducedMotion } from 'framer-motion';
-import { Accessibility, Bug, Eye, Gauge, Globe, Layers, Link2, Lock, MonitorSmartphone, MousePointerClick, Network, Search, ShieldCheck, Smartphone, Sparkles, Terminal, Workflow } from 'lucide-react';
+import { m as motion } from 'framer-motion';
+import { Accessibility, Bug, Eye, FileText, Gauge, Globe, Layers, ListOrdered, Link2, Lock, MonitorSmartphone, MousePointerClick, Network, Search, ShieldCheck, Smartphone, Sparkles, Terminal, Workflow } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Mascot } from '../components/Mascot';
@@ -25,7 +25,7 @@ interface Mod {
 const ICONS: Record<string, typeof Bug> = {
   connectivity: Globe, browser_launch: Terminal, page_inspection: Search, console: Bug, functional: MousePointerClick, ui: Layers, responsive: Smartphone,
   performance: Gauge, accessibility: Accessibility, seo: Search, security: Lock, links_resources: Link2, api: Network, visual_regression: Eye, pwa: MonitorSmartphone,
-  ai_analysis: Sparkles, report_generation: Workflow,
+  pagination: ListOrdered, site_pages: FileText, ai_analysis: Sparkles, report_generation: Workflow,
 };
 
 export default function Home() {
@@ -46,13 +46,22 @@ export default function Home() {
               Your Website Deserves a Bug-Free Experience.
             </motion.h1>
             <p className="lead">
-              Paste a URL. A real browser tests it, then BUGSY explains every problem with evidence and a suggested fix, in plain language.
+              Paste a URL. A real browser tests pages, links, images, pagination, accessibility, performance and security, then BUGSY explains every problem with evidence and a fix.
             </p>
             <div className="card" style={{ padding: 20, maxWidth: 640 }}>
               <StartTestForm />
             </div>
           </div>
-          <ScanStage />
+          <aside className="card" aria-label="Checks that run on every test">
+            <p className="eyebrow">Runs on every test</p>
+            <div className="coverage">
+              {mods === null && Array.from({ length: 6 }, (_, i) => <div key={i} className="skeleton" style={{ height: 22, margin: '10px 0' }} />)}
+              {(mods ?? []).filter((m) => m.implemented && !m.system).map((m) => {
+                const Icon = ICONS[m.id] ?? Bug;
+                return <div key={m.id} className="coverage-row"><Icon size={16} style={{ color: 'var(--sage-600)' }} aria-hidden /><span className="grow">{m.label}</span></div>;
+              })}
+            </div>
+          </aside>
         </div>
       </section>
 
@@ -134,11 +143,9 @@ export default function Home() {
         </div>
       </section>
 
-      <SampleReport />
-
       <section className="wrap section">
         <div className="card card-sage bugsy-intro">
-          <Mascot size={120} mood="happy" />
+          <Mascot size={72} mood="happy" />
           <div className="stack">
             <h2 className="h2" style={{ color: 'var(--cream)' }}>Meet BUGSY</h2>
             <p style={{ maxWidth: 560 }}>
@@ -155,90 +162,5 @@ export default function Home() {
         <Link className="btn btn-yellow" to="#top" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); document.getElementById('site-url')?.focus({ preventScroll: true }); }}>Test my website</Link>
       </section>
     </>
-  );
-}
-
-/** Flat, looping demo of a scan. Illustrative only: the label says so. */
-function ScanStage() {
-  const reduce = useReducedMotion();
-  const pins = [
-    { x: 262, y: 74, label: 'Console error', c: 'var(--sev-high)', t: 1.2 },
-    { x: 70, y: 176, label: 'Low contrast text', c: 'var(--sev-medium)', t: 2.4 },
-    { x: 276, y: 226, label: 'Broken link', c: 'var(--sev-critical)', t: 3.6 },
-    { x: 96, y: 292, label: 'Missing alt text', c: 'var(--sev-low)', t: 4.8 },
-  ];
-  return (
-    <div className="stage" aria-hidden="true">
-      <div className="stage-label">Illustration of a scan</div>
-      <svg viewBox="0 0 400 360" width="100%">
-        <rect x="6" y="6" width="388" height="348" rx="18" fill="var(--paper)" stroke="var(--sage-dark)" strokeWidth="3" />
-        <rect x="6" y="6" width="388" height="34" rx="18" fill="var(--sage)" stroke="var(--sage-dark)" strokeWidth="3" />
-        <circle cx="26" cy="23" r="5" fill="var(--butter-deep)" /><circle cx="42" cy="23" r="5" fill="var(--cream)" /><circle cx="58" cy="23" r="5" fill="var(--cream)" />
-        <rect x="84" y="14" width="250" height="18" rx="9" fill="var(--cream)" />
-        <rect x="30" y="64" width="150" height="16" rx="5" fill="var(--sage-soft)" />
-        <rect x="30" y="92" width="220" height="10" rx="4" fill="var(--cream-3)" /><rect x="30" y="110" width="190" height="10" rx="4" fill="var(--cream-3)" />
-        <rect x="262" y="64" width="104" height="60" rx="10" fill="var(--butter)" stroke="var(--sage-dark)" strokeWidth="2" />
-        <rect x="30" y="150" width="336" height="60" rx="12" fill="var(--sage-mist)" />
-        <rect x="46" y="170" width="120" height="10" rx="4" fill="var(--cream-3)" />
-        <rect x="46" y="188" width="90" height="10" rx="4" fill="var(--cream-3)" />
-        <rect x="30" y="224" width="100" height="36" rx="18" fill="var(--sage)" />
-        <rect x="266" y="236" width="100" height="14" rx="5" fill="var(--sage-soft)" />
-        <rect x="30" y="276" width="336" height="50" rx="12" fill="var(--butter)" />
-        <rect x="46" y="294" width="70" height="14" rx="5" fill="var(--cream-3)" />
-        {!reduce && (
-          <motion.rect x="8" width="384" height="4" fill="var(--sage-dark)" initial={{ y: 42 }} animate={{ y: [42, 336, 42] }} transition={{ duration: 6, repeat: Infinity, ease: 'linear' }} />
-        )}
-        {pins.map((p) => (
-          <motion.g key={p.label} initial={reduce ? false : { opacity: 0, scale: 0.4 }} animate={reduce ? { opacity: 1 } : { opacity: [0, 1, 1, 0], scale: [0.4, 1, 1, 0.9] }} transition={{ duration: 6, delay: reduce ? 0 : p.t - 1, repeat: Infinity, times: [0, 0.08, 0.85, 1] }} style={{ transformOrigin: `${p.x}px ${p.y}px` }}>
-            <circle cx={p.x} cy={p.y} r="11" fill={p.c} stroke="var(--sage-dark)" strokeWidth="2.5" />
-            <path d={`M${p.x - 4} ${p.y - 2}l3 3 5-6`} stroke="var(--paper)" strokeWidth="2.4" fill="none" strokeLinecap="round" />
-            <rect x={p.x - 8} y={p.y + 16} width={p.label.length * 6.6 + 18} height="22" rx="11" fill="var(--ink)" />
-            <text x={p.x + 1} y={p.y + 31} fontSize="11" fontWeight="600" fill="var(--cream)" fontFamily="var(--font-body)">{p.label}</text>
-          </motion.g>
-        ))}
-      </svg>
-      <motion.div className="stage-bugsy" animate={reduce ? undefined : { x: [0, 8, 0] }} transition={{ duration: 3, repeat: Infinity }}>
-        <Mascot size={84} mood="thinking" />
-      </motion.div>
-    </div>
-  );
-}
-
-function SampleReport() {
-  return (
-    <section className="wrap section">
-      <div className="row spread" style={{ alignItems: 'flex-end', marginBottom: 18 }}>
-        <h2 className="h2">What a report looks like</h2>
-        <span className="tag">Example for illustration, not a real test</span>
-      </div>
-      <div className="sample">
-        <div className="card">
-          <div className="row spread">
-            <div>
-              <b style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem' }}>shop.example.com</b>
-              <div className="muted small">4 issues detected in the tests performed</div>
-            </div>
-            <span className="tag">Some modules skipped</span>
-          </div>
-          <hr className="divider" />
-          {[
-            ['high', 'Unhandled exception: cart is undefined', 'Confirmed', 'Console'],
-            ['medium', 'Text contrast is too low on 3 elements', 'Confirmed', 'Accessibility'],
-            ['low', 'Image without alternative text', 'Potential', 'SEO'],
-          ].map(([sev, t, conf, cat]) => (
-            <div key={t} className="sample-row">
-              <span className={`sev sev-${sev}`}>{sev}</span>
-              <div className="grow"><b>{t}</b><div className="muted small">{cat} · {conf}</div></div>
-            </div>
-          ))}
-        </div>
-        <div className="card card-butter">
-          <b style={{ fontFamily: 'var(--font-display)' }}>Suggested fix</b>
-          <p className="small" style={{ margin: '8px 0 12px' }}>Initialise <code className="mono">cart</code> before the first render, or guard the access with <code className="mono">cart?.items</code>.</p>
-          <b style={{ fontFamily: 'var(--font-display)' }}>BUGSY says</b>
-          <p className="small" style={{ marginTop: 8 }}>This error fires on page load, so every visitor sees a broken cart badge. Fix this one first.</p>
-        </div>
-      </div>
-    </section>
   );
 }

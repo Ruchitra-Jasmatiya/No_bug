@@ -65,7 +65,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  timeouts: { jobMs: 600_000, moduleMs: 120_000, navigationMs: 30_000 },
+  timeouts: { jobMs: 240_000, moduleMs: 80_000, navigationMs: 20_000 },
   crawl: { maxPages: 10, maxDepth: 1, maxDownloadBytes: 5 * 1024 * 1024 },
   ai: { maxFindings: 25 },
 };

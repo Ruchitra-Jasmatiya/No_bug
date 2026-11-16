@@ -171,7 +171,7 @@ export interface ChatContext {
   finishedAt: string | null;
   counts: Record<string, number>;
   modules: Array<{ id: string; label: string; status: string; note: string | null }>;
-  issues: Array<{ code: string; severity: string; confidence: string; category: string; title: string; description: string; affectedUrl: string | null; suggestedFix: string; evidence: Record<string, unknown>; ai: { explanation?: string; fix?: string } | null }>;
+  issues: Array<{ code: string; severity: string; confidence: string; category: string; title: string; description: string; affectedUrl: string | null; suggestedFix: string; evidence: Record<string, unknown>; ai: { explanation?: string; fix?: string } | null; checkKey?: string | null; moduleId?: string | null }>;
   issuesOmitted: number;
   recentLogs: string[];
   previous: { finishedAt: string | null; bugs: number; fixed: string[]; newIssues: string[]; remaining: number } | null;

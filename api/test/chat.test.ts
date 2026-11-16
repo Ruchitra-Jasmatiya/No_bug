@@ -54,16 +54,20 @@ suite('BUGSY chat API', () => {
     await off.cleanup();
   });
 
-  it('is honest when AI is not configured', async () => {
+  it('without an AI provider BUGSY still answers from the built-in assistant, and says which mode it is in', async () => {
     const u = await off.makeUser();
-    assert.equal((await off.call('GET', '/api/chat/status', { userId: u })).body.configured, false);
+    const st = (await off.call('GET', '/api/chat/status', { userId: u })).body;
+    assert.equal(st.configured, false, 'honest: no external AI is configured');
+    assert.equal(st.available, true);
+    assert.equal(st.mode, 'builtin');
     const c = await off.call('POST', '/api/chat/conversations', { userId: u, body: {} });
     assert.equal(c.status, 201);
-    const m = await off.call('POST', `/api/chat/conversations/${c.body.conversation.id}/messages`, { userId: u, body: { content: 'hello' } });
-    assert.equal(m.status, 503);
-    assert.equal(m.body.error.code, 'ai_not_configured');
+    const m = await off.call('POST', `/api/chat/conversations/${c.body.conversation.id}/messages`, { userId: u, body: { content: 'what is a CORS error?' } });
+    assert.equal(m.status, 200);
+    assert.match(m.body.assistant.content, /Access-Control-Allow-Origin/);
+    assert.equal(m.body.assistant.grounded, false, 'no report attached, so the answer is not grounded in test data');
     const hist = await off.call('GET', `/api/chat/conversations/${c.body.conversation.id}`, { userId: u });
-    assert.equal(hist.body.messages.length, 0, 'no fake reply is stored');
+    assert.equal(hist.body.messages.length, 2, 'both messages are stored');
   });
 
   it('requires authentication', async () => {
@@ -121,15 +125,15 @@ suite('BUGSY chat API', () => {
     assert.equal((await api.call('POST', '/api/chat/conversations/not-a-uuid/messages', { userId: u, body: { content: 'x' } })).status, 404);
   });
 
-  it('provider failure: friendly error and the user message is not stored', async () => {
+  it('provider failure: the user still gets a built-in answer, nothing is lost', async () => {
     const u = await api.makeUser();
     const c = await api.call('POST', '/api/chat/conversations', { userId: u, body: {} });
     ai.fail = new AiError('unavailable', 'down', true);
-    const r = await api.call('POST', `/api/chat/conversations/${c.body.conversation.id}/messages`, { userId: u, body: { content: 'hello' } });
+    const r = await api.call('POST', `/api/chat/conversations/${c.body.conversation.id}/messages`, { userId: u, body: { content: 'what is a 404?' } });
     ai.fail = null;
-    assert.equal(r.status, 503);
-    assert.equal(r.body.error.code, 'ai_unavailable');
-    assert.equal((await api.call('GET', `/api/chat/conversations/${c.body.conversation.id}`, { userId: u })).body.messages.length, 0);
+    assert.equal(r.status, 200);
+    assert.match(r.body.assistant.content, /404/);
+    assert.equal((await api.call('GET', `/api/chat/conversations/${c.body.conversation.id}`, { userId: u })).body.messages.length, 2);
   });
 
   it('compares with the previous report for the same site using real data', async () => {

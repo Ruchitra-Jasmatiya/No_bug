@@ -172,7 +172,9 @@ suite('browser end-to-end (built web app)', { timeout: 600_000 }, () => {
     await page.waitForURL(/\/tests\/[0-9a-f-]{36}$/);
     jobId = page.url().split('/').pop()!;
     await page.getByRole('progressbar').waitFor();
-    await page.getByText('What’s being tested').waitFor();
+    await page.getByRole('heading', { name: 'Tests performed' }).waitFor();
+    await page.getByRole('button', { name: 'Pagination testing' }).waitFor();
+    await page.getByRole('button', { name: 'Site pages & URL validation' }).waitFor();
 
     // network loss: banner appears, then clears when the connection returns; progress is not lost
     await ctx.setOffline(true);
@@ -230,12 +232,24 @@ suite('browser end-to-end (built web app)', { timeout: 600_000 }, () => {
     assert.equal(fs.readFileSync(file).subarray(0, 4).toString(), '%PDF');
   });
 
-  it('BUGSY opens and states honestly that AI is not configured', async () => {
+  it('BUGSY has a visible Send button and answers from the stored evidence without an AI key', async () => {
     await page.getByRole('button', { name: 'Ask BUGSY' }).first().click();
-    await page.getByRole('region', { name: 'BUGSY chat' }).waitFor();
-    await page.getByText(/AI is not switched on for this server/).waitFor();
-    await shot('bugsy-unconfigured');
-    await page.getByRole('button', { name: 'Close chat' }).click();
+    const chat = page.getByRole('region', { name: 'BUGSY chat' });
+    await chat.waitFor();
+    const input = chat.getByLabel('Message BUGSY');
+    const send = chat.getByRole('button', { name: /Send/ });
+    // The report's own "Ask BUGSY" sends a summary question first; wait for that answer, then the input is free.
+    await chat.getByText(/Summary for|Fix in this order|issue/).first().waitFor({ timeout: 20_000 });
+    await input.waitFor();
+    await page.waitForFunction(() => !(document.querySelector('textarea[aria-label="Message BUGSY"]') as HTMLTextAreaElement | null)?.disabled, null, { timeout: 20_000 });
+    assert.ok(await input.isEnabled(), 'input must be enabled');
+    assert.ok(await send.isVisible(), 'Send button must be visible');
+    assert.ok(await send.isDisabled(), 'Send is disabled until something is typed');
+    await input.fill('What should I fix first?');
+    await send.click();
+    await chat.getByText(/Fix in this order/).waitFor({ timeout: 20_000 });
+    await shot('bugsy-answer');
+    await chat.getByRole('button', { name: 'Close chat' }).click();
   });
 
   it('dashboard lists the finished test; a non-admin cannot open /admin', async () => {

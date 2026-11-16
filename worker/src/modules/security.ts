@@ -91,17 +91,20 @@ export const securityModule: TestModule = {
     // Exposed files (passive GETs, signature-verified) ---------------------------------------
     const origin = new URL(url).origin;
     let exposed = 0;
-    for (const probe of EXPOSURE_PROBES) {
-      if (ctx.signal.aborted) break;
+    const probed = await Promise.all(EXPOSURE_PROBES.map(async (probe) => {
+      if (ctx.signal.aborted) return null;
       try {
-        const r = await safeFetch(origin + probe.path, { policy: ctx.policy, timeoutMs: 8_000, maxBytes: 8192, maxRedirects: 0, signal: ctx.signal });
-        if (r.status === 200 && r.body && probe.signature.test(r.body)) {
-          exposed++;
-          out.push({ checkKey: `exposed_${probe.path.replace(/\W+/g, '_')}`, title: probe.label, status: 'fail', severity: probe.severity, confidence: 'confirmed', affectedUrl: origin + probe.path, message: `${probe.label} is publicly downloadable at ${probe.path}. Its content matches the expected file signature.`, evidence: { path: probe.path, status: r.status }, recommendation: 'Remove this file from the web root immediately and rotate any secret it may have contained.' });
-        }
+        const r = await safeFetch(origin + probe.path, { policy: ctx.policy, timeoutMs: 5_000, maxBytes: 8192, maxRedirects: 0, signal: ctx.signal });
+        return r.status === 200 && r.body && probe.signature.test(r.body) ? { probe, status: r.status } : null;
       } catch {
-        /* unreachable path = not exposed */
+        return null; // unreachable path = not exposed
       }
+    }));
+    for (const hit of probed) {
+      if (!hit) continue;
+      const { probe } = hit;
+      exposed++;
+      out.push({ checkKey: `exposed_${probe.path.replace(/\W+/g, '_')}`, title: probe.label, status: 'fail', severity: probe.severity, confidence: 'confirmed', affectedUrl: origin + probe.path, message: `${probe.label} is publicly downloadable at ${probe.path}. Its content matches the expected file signature.`, evidence: { path: probe.path, status: hit.status }, recommendation: 'Remove this file from the web root immediately and rotate any secret it may have contained.' });
     }
     if (exposed === 0) out.push({ checkKey: 'exposed_files', title: 'Sensitive files not exposed', status: 'pass', affectedUrl: origin, message: `${EXPOSURE_PROBES.length} common sensitive paths were requested; none returned recognisable sensitive content.`, evidence: { probed: EXPOSURE_PROBES.map((p) => p.path) } });
 

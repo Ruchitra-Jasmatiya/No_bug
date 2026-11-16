@@ -9,6 +9,8 @@ const schema = z.object({
   REDIS_URL: z.string().min(1, 'REDIS_URL is required'),
   WORKER_ID: z.string().min(1).optional(),
   WORKER_CONCURRENCY: z.coerce.number().int().min(1).max(16).default(2),
+  /** How many independent test modules one job runs at the same time (1 = strictly one after another). */
+  MODULE_CONCURRENCY: z.coerce.number().int().min(1).max(8).default(5),
   /** How often a running job proves it is alive. */
   HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(100).default(5_000),
   /** A running job with no heartbeat for this long is considered orphaned and may be taken over. */

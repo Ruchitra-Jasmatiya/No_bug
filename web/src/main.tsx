@@ -1,3 +1,5 @@
+import '@fontsource-variable/inter';
+import { LazyMotion, domAnimation } from 'framer-motion';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
@@ -15,7 +17,9 @@ createRoot(document.getElementById('root')!).render(
         <ToastProvider>
           <AuthProvider>
             <BugsyProvider>
-              <App />
+              <LazyMotion features={domAnimation} strict={false}>
+                <App />
+              </LazyMotion>
             </BugsyProvider>
           </AuthProvider>
         </ToastProvider>

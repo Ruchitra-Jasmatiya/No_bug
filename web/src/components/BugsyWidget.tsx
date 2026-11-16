@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, m as motion } from 'framer-motion';
 import { History, Plus, Send, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -24,7 +24,7 @@ interface Conv {
 export function BugsyWidget() {
   const { user } = useAuth();
   const { job, open, setOpen, pendingPrompt, clearPending } = useBugsy();
-  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [mode, setMode] = useState<'ai' | 'builtin' | null>(null);
   const [convId, setConvId] = useState<string | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [convs, setConvs] = useState<Conv[]>([]);
@@ -39,8 +39,8 @@ export function BugsyWidget() {
 
   // Status is only requested for signed-in users (the endpoint needs auth).
   useEffect(() => {
-    if (!user) return setConfigured(null);
-    get<{ configured: boolean }>('/api/chat/status').then((s) => setConfigured(s.configured)).catch(() => setConfigured(null));
+    if (!user) return setMode(null);
+    get<{ configured: boolean; mode?: 'ai' | 'builtin' }>('/api/chat/status').then((s) => setMode(s.mode ?? (s.configured ? 'ai' : 'builtin'))).catch(() => setMode(null));
   }, [user]);
 
   useEffect(() => {
@@ -107,7 +107,6 @@ export function BugsyWidget() {
         setMsgs((m) => m.filter((x) => x.id !== tempId));
         setText(body);
         setError(e instanceof ApiError ? e.message : 'BUGSY could not answer. Please try again.');
-        if (e instanceof ApiError && e.code === 'ai_not_configured') setConfigured(false);
       } finally {
         setSending(false);
       }
@@ -116,12 +115,12 @@ export function BugsyWidget() {
   );
 
   useEffect(() => {
-    if (open && pendingPrompt && user && configured !== null) {
+    if (open && pendingPrompt && user) {
       const p = pendingPrompt;
       clearPending();
-      if (configured) void send(p);
+      void send(p);
     }
-  }, [open, pendingPrompt, user, configured, send, clearPending]);
+  }, [open, pendingPrompt, user, send, clearPending]);
 
   if (!user) {
     return null; // BUGSY needs a session; the landing page explains the assistant instead.
@@ -147,14 +146,14 @@ export function BugsyWidget() {
             transition={{ type: 'spring', stiffness: 360, damping: 30 }}
           >
             <header className="bugsy-head">
-              <Mascot size={44} mood={sending ? 'thinking' : 'idle'} />
+              <Mascot size={36} mood={sending ? 'thinking' : 'idle'} />
               <div className="grow">
-                <b style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem' }}>BUGSY</b>
-                <div className="small" style={{ opacity: 0.85 }}>{job ? `Looking at ${job.hostname}` : 'Your testing assistant'}</div>
+                <b>BUGSY</b>
+                <div className="small" style={{ opacity: 0.85 }}>{job ? `Looking at ${job.hostname}` : 'Debugging assistant'}{mode ? (mode === 'ai' ? ' · AI-assisted' : ' · answers from your test evidence') : ''}</div>
               </div>
-              <button className="btn btn-ghost btn-icon btn-sm" style={{ color: 'var(--cream)' }} onClick={() => setShowHistory((s) => !s)} aria-label="Conversation history" aria-pressed={showHistory}><History size={18} /></button>
-              <button className="btn btn-ghost btn-icon btn-sm" style={{ color: 'var(--cream)' }} onClick={() => { setConvId(null); setMsgs([]); setShowHistory(false); setError(null); }} aria-label="New conversation"><Plus size={18} /></button>
-              <button className="btn btn-ghost btn-icon btn-sm" style={{ color: 'var(--cream)' }} onClick={() => setOpen(false)} aria-label="Close chat"><X size={18} /></button>
+              <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setShowHistory((s) => !s)} aria-label="Conversation history" aria-pressed={showHistory}><History size={18} /></button>
+              <button className="btn btn-ghost btn-icon btn-sm" onClick={() => { setConvId(null); setMsgs([]); setShowHistory(false); setError(null); }} aria-label="New conversation"><Plus size={18} /></button>
+              <button className="btn btn-ghost btn-icon btn-sm" onClick={() => setOpen(false)} aria-label="Close chat"><X size={18} /></button>
             </header>
 
             {showHistory ? (
@@ -172,14 +171,8 @@ export function BugsyWidget() {
               <div className="bugsy-body" ref={scroller}>
                 {msgs.length === 0 && (
                   <div className="bubble bubble-bot">
-                    {configured === false ? (
-                      <p>My AI is not switched on for this server yet, so I can’t chat. Your report, evidence and recommended fixes are all still available on the report page.</p>
-                    ) : (
-                      <>
-                        <p>Hi, I’m BUGSY. {contextual ?? 'Open a report and I’ll help you understand what was found.'}</p>
-                        {job && configured && <p style={{ marginTop: 6 }}>I only use the results of your real test, so I’ll tell you when something wasn’t tested.</p>}
-                      </>
-                    )}
+                    <p>Hi, I’m BUGSY. {contextual ?? 'Open a report and I can explain what failed, where, why, and how to fix it.'}</p>
+                    <p style={{ marginTop: 6 }}>I only use the results of your real tests, and I’ll say so when something wasn’t tested or no file or line was recorded.</p>
                   </div>
                 )}
                 {msgs.map((m) => (
@@ -194,14 +187,24 @@ export function BugsyWidget() {
               </div>
             )}
 
-            {!showHistory && configured !== false && msgs.length === 0 && suggestions.length > 0 && (
+            {!showHistory && msgs.length === 0 && suggestions.length > 0 && (
               <div className="bugsy-chips">
                 {suggestions.map((s) => <button key={s} className="chip" onClick={() => send(s)}>{s}</button>)}
               </div>
             )}
             <form className="bugsy-form" onSubmit={(e) => { e.preventDefault(); void send(text); }}>
-              <input className="input" aria-label="Message BUGSY" placeholder={configured === false ? 'Chat is unavailable' : 'Ask about your results…'} value={text} maxLength={2000} disabled={configured === false || sending} onChange={(e) => setText(e.target.value)} />
-              <button className="btn btn-icon" aria-label="Send" disabled={!text.trim() || sending || configured === false}><Send size={18} /></button>
+              <textarea
+                className="input chat-input"
+                rows={1}
+                aria-label="Message BUGSY"
+                placeholder="Ask about an error, a page or a fix…"
+                value={text}
+                maxLength={2000}
+                disabled={sending}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(text); } }}
+              />
+              <button type="submit" className="btn chat-send" disabled={!text.trim() || sending}><Send size={16} /> Send</button>
             </form>
           </motion.section>
         )}
@@ -212,10 +215,10 @@ export function BugsyWidget() {
         onClick={() => { setOpen(!open); if (job) setSeenJob(job.jobId); }}
         aria-label={open ? 'Close BUGSY chat' : 'Open BUGSY chat'}
         aria-expanded={open}
-        whileHover={{ scale: 1.06, rotate: -4 }}
-        whileTap={{ scale: 0.94 }}
+        whileTap={{ scale: 0.97 }}
       >
-        <Mascot size={54} mood={hasNews ? 'alert' : 'idle'} />
+        <Mascot size={36} mood={hasNews ? 'alert' : 'idle'} />
+        <span>Ask BUGSY</span>
         {hasNews && !open && <span className="bugsy-dot" aria-label="New message from BUGSY" />}
       </motion.button>
       {hasNews && !open && (

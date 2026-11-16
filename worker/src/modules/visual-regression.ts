@@ -16,11 +16,12 @@ export const visualRegressionModule: TestModule = {
   async run(ctx): Promise<ModuleResult> {
     const skip = skipUnlessHtml(ctx, 'Visual regression');
     if (skip) return skip;
-    const out: CheckOutcome[] = [];
+    const allOut: CheckOutcome[] = [];
     let loaded = 0;
     let lastErr: unknown = null;
-    for (const vp of VIEWPORTS) {
-      if (ctx.signal.aborted) break;
+    const parts = await Promise.all(VIEWPORTS.map(async (vp) => {
+      const out: CheckOutcome[] = [];
+      if (ctx.signal.aborted) return out;
       try {
         await withPage(ctx, { viewport: { width: vp.width, height: vp.height }, settleMs: 500 }, async (page) => {
           loaded++;
@@ -49,8 +50,10 @@ export const visualRegressionModule: TestModule = {
       } catch (err) {
         lastErr = err;
       }
-    }
+      return out;
+    }));
+    for (const p of parts) allOut.push(...p);
     if (loaded === 0) return navigationBlocked('Visual regression', lastErr);
-    return { status: 'completed', outcomes: out };
+    return { status: 'completed', outcomes: allOut };
   },
 };

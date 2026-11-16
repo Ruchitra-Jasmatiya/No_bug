@@ -31,6 +31,18 @@ class StopSignal extends Error {
 }
 
 const SETTLED = new Set<string>(SETTLED_MODULE_STATUSES);
+const GATE_MODULES = new Set<string>(['connectivity', 'browser_launch', 'page_inspection']);
+const FINAL_MODULES = new Set<string>(['ai_analysis', 'report_generation']);
+
+/** Run `fn` over `items` with at most `limit` in flight; starts nothing new once `halted()` is true. */
+async function runPool<T>(items: T[], limit: number, fn: (item: T) => Promise<void>, halted: () => boolean): Promise<void> {
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(limit, items.length) }, async () => {
+      while (next < items.length && !halted()) await fn(items[next++]!);
+    }),
+  );
+}
 
 export class Orchestrator {
   private readonly shutdown = new AbortController();
@@ -104,15 +116,16 @@ export class Orchestrator {
 
       let fatal: string | null = null;
       const priors = new Map<ModuleId, PriorModule>();
+      const sharedCache = new Map<string, Promise<unknown>>(); // per-job memo, e.g. the downloaded home page
       let modules = await store.getModules(job.id);
       for (const m of modules) if (SETTLED.has(m.status)) priors.set(m.module_id, { status: m.status, checkpoint: m.checkpoint });
 
       // A previous attempt may already have decided the target is unusable.
       fatal = this.recoverFatal(modules);
 
-      for (const row of modules) {
-        if (stop) break;
-        if (SETTLED.has(row.status)) continue; // checkpoint: never rerun settled modules
+      const runModule = async (row: ModuleRow): Promise<void> => {
+        if (stop) return;
+        if (SETTLED.has(row.status)) return; // checkpoint: never rerun settled modules
 
         const def = MODULE_BY_ID[row.module_id];
         const impl = getModule(row.module_id);
@@ -120,20 +133,20 @@ export class Orchestrator {
         if (fatal) {
           await this.settle(job, row, { status: 'blocked', note: fatal, outcomes: [] }, browser, 0);
           priors.set(row.module_id, { status: 'blocked', checkpoint: {} });
-          continue;
+          return;
         }
         if (!impl) {
           await this.settle(job, row, { status: 'skipped', note: 'Not available in this version of the platform.', outcomes: [] }, browser, 0);
           await store.appendLog(job.id, row.module_id, 'info', `${def.label}: skipped (not available in this version).`);
           priors.set(row.module_id, { status: 'skipped', checkpoint: {} });
-          continue;
+          return;
         }
         if (row.attempt >= MAX_MODULE_ATTEMPTS) {
           // Poison-module guard: it already crashed the worker repeatedly.
           const msg = `${def.label} did not finish after ${row.attempt} attempts and was marked failed.`;
           await this.settle(job, row, { status: 'failed', error: msg, note: msg, outcomes: [] }, browser, 0);
           priors.set(row.module_id, { status: 'failed', checkpoint: {} });
-          continue;
+          return;
         }
 
         const attempt = await store.startModule(job.id, row.module_id);
@@ -161,6 +174,7 @@ export class Orchestrator {
             await browser.start();
             return browser;
           },
+          shared: sharedCache,
         };
 
         let result: ModuleResult;
@@ -170,10 +184,10 @@ export class Orchestrator {
           if (stop) {
             // Interrupted by cancel / shutdown / lost ownership: give the module back, do not settle it.
             await store.releaseModule(job.id, row.module_id).catch(() => undefined);
-            break;
+            return;
           }
           const timedOut = (err as Error)?.message === 'module timeout';
-          const msg = timedOut ? `${def.label} timed out.` : `${def.label} could not be completed.`;
+          const msg = timedOut ? `${def.label} timed out after ${Math.round(settings.timeouts.moduleMs / 1000)}s and was stopped so the rest of the test could finish.` : `${def.label} could not be completed.`;
           log.error({ err: String(err), module: row.module_id }, 'module crashed');
           result = { status: timedOut ? 'blocked' : 'failed', note: msg, error: msg, outcomes: [] };
           await store.appendLog(job.id, row.module_id, 'error', msg, { detail: String((err as Error)?.message ?? err).slice(0, 300) });
@@ -189,7 +203,20 @@ export class Orchestrator {
           fatal = result.fatal;
           await store.appendLog(job.id, row.module_id, 'warn', `Remaining modules will not run: ${result.fatal}`);
         }
-      }
+      };
+
+      // Stage 1: gate modules, strictly in order (they decide whether the target is usable at all, and
+      // page inspection feeds the console and API modules).
+      // Stage 2: independent modules run together, MODULE_CONCURRENCY at a time. Each opens its own isolated
+      //          browser context, so they cannot affect one another's results.
+      // Stage 3: AI analysis and the report read everything the other modules produced, so they go last.
+      const todo = modules.filter((m) => !SETTLED.has(m.status));
+      const first = todo.filter((m) => GATE_MODULES.has(m.module_id));
+      const last = todo.filter((m) => FINAL_MODULES.has(m.module_id));
+      const middle = todo.filter((m) => !GATE_MODULES.has(m.module_id) && !FINAL_MODULES.has(m.module_id));
+      for (const row of first) await runModule(row);
+      if (!stop) await runPool(middle, Math.max(1, config.MODULE_CONCURRENCY ?? 5), runModule, () => !!stop);
+      for (const row of last) await runModule(row);
 
       const s = stop as StopSignal | null;
       if (s) {

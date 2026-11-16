@@ -4,8 +4,10 @@ import { fetchFailureOutcome, fetchPage, resolveUrl } from '../lib/html.js';
 import { skipUnlessHtml } from '../browser/open-page.js';
 import type { ModuleResult, TestModule } from './types.js';
 
-const MAX_LINKS = 40;
-const CONCURRENCY = 5;
+const MAX_LINKS = 60;
+const MAX_IMAGES = 50;
+const CONCURRENCY = 16;
+const REQUEST_TIMEOUT_MS = 6_000;
 
 async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
   const results: R[] = [];
@@ -59,8 +61,8 @@ export const linksModule: TestModule = {
     const toCheck = list.slice(0, MAX_LINKS);
     const checked = await mapLimit(toCheck, CONCURRENCY, async ([href, meta]) => {
       try {
-        let r = await safeFetch(href, { method: 'HEAD', policy: ctx.policy, timeoutMs: 10_000, maxBytes: 4096, readBody: false, signal: ctx.signal });
-        if (r.status === 405 || r.status === 501 || r.status === 403) r = await safeFetch(href, { policy: ctx.policy, timeoutMs: 10_000, maxBytes: 4096, signal: ctx.signal });
+        let r = await safeFetch(href, { method: 'HEAD', policy: ctx.policy, timeoutMs: REQUEST_TIMEOUT_MS, maxBytes: 4096, readBody: false, signal: ctx.signal });
+        if (r.status === 405 || r.status === 501 || r.status === 403) r = await safeFetch(href, { policy: ctx.policy, timeoutMs: REQUEST_TIMEOUT_MS, maxBytes: 4096, signal: ctx.signal });
         return { href, ...meta, status: r.status, redirects: r.redirects.length, error: null as string | null, finalUrl: r.finalUrl };
       } catch (err) {
         const code = (err as { code?: string }).code ?? 'error';
@@ -83,10 +85,10 @@ export const linksModule: TestModule = {
     if (list.length > MAX_LINKS) out.push({ checkKey: 'links_limit', title: 'Link check limit', status: 'info', severity: 'informational', confidence: 'informational', message: `The page has ${list.length} unique links; the first ${MAX_LINKS} were checked to keep the test polite and fast.` });
 
     // Images ----------------------------------------------------------------------------------
-    const imgs = [...new Set($('img[src]').toArray().map((e) => resolveUrl($(e).attr('src'), url)?.href).filter((u): u is string => !!u && /^https?:/.test(u)))].slice(0, 30);
+    const imgs = [...new Set($('img[src]').toArray().map((e) => resolveUrl($(e).attr('src'), url)?.href).filter((u): u is string => !!u && /^https?:/.test(u)))].slice(0, MAX_IMAGES);
     const imgResults = await mapLimit(imgs, CONCURRENCY, async (src) => {
       try {
-        const r = await safeFetch(src, { method: 'HEAD', policy: ctx.policy, timeoutMs: 10_000, maxBytes: 4096, readBody: false, signal: ctx.signal });
+        const r = await safeFetch(src, { method: 'HEAD', policy: ctx.policy, timeoutMs: REQUEST_TIMEOUT_MS, maxBytes: 4096, readBody: false, signal: ctx.signal });
         return { src, status: r.status, type: r.headers['content-type'] ?? '', size: Number(r.headers['content-length'] ?? 0) };
       } catch {
         return { src, status: 0, type: '', size: 0 };

@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m as motion } from 'framer-motion';
 import { ArrowLeft, MailCheck } from 'lucide-react';
 import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -19,11 +19,11 @@ function AuthShell({ title, subtitle, children, back }: { title: string; subtitl
             <ArrowLeft size={15} /> {back.label}
           </Link>
         )}
-        <div className="row" style={{ gap: 14, flexWrap: 'nowrap', alignItems: 'center' }}>
-          <Mascot size={58} />
+        <div className="stack" style={{ ['--gap' as string]: '12px' }}>
+          <Mascot size={44} />
           <div>
-            <h1 style={{ fontSize: 'clamp(1.6rem,4vw,2.1rem)' }}>{title}</h1>
-            {subtitle && <p className="muted" style={{ margin: 0 }}>{subtitle}</p>}
+            <h1>{title}</h1>
+            {subtitle && <p className="muted" style={{ margin: '6px 0 0' }}>{subtitle}</p>}
           </div>
         </div>
         <div className="stack" style={{ marginTop: 22 }}>{children}</div>

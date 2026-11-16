@@ -17,6 +17,10 @@
     "./ai": {
       "types": "./dist/ai/index.d.ts",
       "default": "./dist/ai/index.js"
+    },
+    "./assistant": {
+      "types": "./dist/assistant/index.d.ts",
+      "default": "./dist/assistant/index.js"
     }
   },
   "scripts": {

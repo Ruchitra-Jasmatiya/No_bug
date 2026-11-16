@@ -175,3 +175,13 @@ A DB-backed suite that cannot reach a database reports **skipped**, never passed
 - Admin access is decided from `public.user_roles` on the server and in RLS, never from a client-supplied claim.
 - Test results are only readable by their owner (RLS and API ownership checks). Another user's id returns an identical 404.
 - Users must confirm they are authorised to test a target. Testing is passive and non-destructive.
+
+
+## Update notes: speed, test panel, BUGSY
+
+- **Faster tests.** Modules now run in parallel (`MODULE_CONCURRENCY`, default 5; connectivity, browser launch and page inspection still run first, AI analysis and the report last). Responsive/visual viewports, link/image checks, security probes and navigation probes run concurrently. Default timeouts: job 240s, module 80s, navigation 20s. No check was removed. Real-website timing depends on the target site and your worker machine; benchmark with `worker/bench/bench.ts`.
+- **New tests:** *Pagination testing* and *Site pages & URL validation* (plus the existing links/images check). Run `node --env-file=.env scripts/migrate.mjs` to apply migration `0006` (adds them to enabled modules and updates old timeout defaults).
+- **Tests performed panel** on the live page and the report: every test with its real status, duration and counts, per-check results with filters, and an activity log. Backed by the additive endpoint `GET /api/tests/:id/results`.
+- **BUGSY** works without an AI key (built-in assistant over stored test evidence: errors, pages, file/line only when recorded). With `ANTHROPIC_API_KEY` set it uses AI and falls back to the built-in answer on failure.
+- **Database TLS:** if your provider uses a certificate chain Node rejects, set `DB_SSL_REJECT_UNAUTHORIZED=false` (strict by default).
+- **UI:** one font family (Inter, self-hosted), flat cream/sage/soft-yellow design system.

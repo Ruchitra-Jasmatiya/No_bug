@@ -1,5 +1,6 @@
 import type pg from 'pg';
 import { AiError, CHAT_SYSTEM_PROMPT, buildChatContext, type AiProvider, type ChatContext } from '@nba/shared/ai';
+import { answerQuestion } from '@nba/shared/assistant';
 import { HttpError, notFound, tooMany } from '../lib/errors.js';
 import type { Logger } from '../lib/logger.js';
 
@@ -16,8 +17,12 @@ export class ChatService {
     private readonly logger: Logger,
   ) {}
 
-  status(): { configured: boolean; provider: string | null } {
-    return { configured: this.ai !== null, provider: this.ai?.name ?? null };
+  /**
+   * `configured` = an external AI provider is set up. `available` is always true: without a provider BUGSY answers
+   * with the built-in assistant, which explains issues from the stored test evidence.
+   */
+  status(): { configured: boolean; provider: string | null; available: boolean; mode: 'ai' | 'builtin' } {
+    return { configured: this.ai !== null, provider: this.ai?.name ?? null, available: true, mode: this.ai ? 'ai' : 'builtin' };
   }
 
   async listConversations(userId: string, jobId?: string) {
@@ -55,9 +60,6 @@ export class ChatService {
 
   async send(userId: string, conversationId: string, content: string) {
     const conv = await this.ownedConversation(userId, conversationId);
-    if (!this.ai) {
-      throw new HttpError(503, 'ai_not_configured', 'BUGSY’s AI is not configured on this server yet, so chat is unavailable. Your test results and the recommended fixes are still available in the report.');
-    }
     const recent = await this.pool.query<{ n: number }>(
       `select count(*)::int as n from public.chatbot_messages m join public.chatbot_conversations c on c.id = m.conversation_id
         where c.user_id = $1 and m.role = 'user' and m.created_at > now() - interval '1 hour'`,
@@ -70,23 +72,27 @@ export class ChatService {
       [conversationId, HISTORY_MESSAGES],
     );
     const context = conv.job_id ? await this.buildContext(userId, conv.job_id) : null;
-    const system = context
-      ? `${CHAT_SYSTEM_PROMPT}\n\n${buildChatContext(context)}`
-      : `${CHAT_SYSTEM_PROMPT}\n\nNo test report is attached to this conversation. Answer general website-quality questions, and say clearly that you have no test data for this conversation.`;
 
-    const messages = [...history.rows, { role: 'user' as const, content }];
-    // The Anthropic API requires the first message to be from the user and roles to alternate.
-    while (messages.length > 1 && messages[0]!.role !== 'user') messages.shift();
-
-    let reply: string;
-    try {
-      reply = (await this.ai.complete({ system, messages, maxTokens: 1200, temperature: 0.3 })).text.trim();
-    } catch (err) {
-      const code = err instanceof AiError ? err.code : 'unavailable';
-      this.logger.warn({ code }, 'chat completion failed');
-      throw new HttpError(code === 'rate_limited' ? 429 : 503, 'ai_unavailable', 'BUGSY could not answer just now. Please try again in a moment. Your message was not lost.');
+    // The built-in assistant always has an answer from the stored evidence. An AI provider, when configured,
+    // gives a more conversational answer on top of the same evidence; if it fails the user still gets the built-in one.
+    let reply = '';
+    let source: 'ai' | 'builtin' = 'builtin';
+    let model: string | null = null;
+    if (this.ai) {
+      const system = context
+        ? `${CHAT_SYSTEM_PROMPT}\n\n${buildChatContext(context)}`
+        : `${CHAT_SYSTEM_PROMPT}\n\nNo test report is attached to this conversation. Answer general website-quality questions, and say clearly that you have no test data for this conversation.`;
+      const messages = [...history.rows, { role: 'user' as const, content }];
+      // The Anthropic API requires the first message to be from the user and roles to alternate.
+      while (messages.length > 1 && messages[0]!.role !== 'user') messages.shift();
+      try {
+        reply = (await this.ai.complete({ system, messages, maxTokens: 1200, temperature: 0.3 })).text.trim();
+        if (reply) { source = 'ai'; model = this.ai.model; }
+      } catch (err) {
+        this.logger.warn({ code: err instanceof AiError ? err.code : 'unavailable' }, 'chat completion failed; using the built-in assistant');
+      }
     }
-    if (!reply) throw new HttpError(503, 'ai_unavailable', 'BUGSY returned an empty answer. Please try again.');
+    if (!reply) reply = answerQuestion(content, context);
 
     const client = await this.pool.connect();
     try {
@@ -95,7 +101,7 @@ export class ChatService {
       const a = await client.query(`insert into public.chatbot_messages (conversation_id, role, content, metadata, created_at) values ($1,'assistant',$2,$3::jsonb, clock_timestamp()) returning id, created_at`, [
         conversationId,
         reply,
-        JSON.stringify({ grounded: context !== null, model: this.ai.model }),
+        JSON.stringify({ grounded: context !== null, source, model }),
       ]);
       const title = conv.title === 'New conversation' ? content.replace(/\s+/g, ' ').slice(0, 60) : conv.title;
       await client.query('update public.chatbot_conversations set title = $2, updated_at = now() where id = $1', [conversationId, title]);
@@ -154,7 +160,7 @@ export class ChatService {
     const job = await this.ownedJob(userId, jobId);
     const [mods, bugs, total, logs, counts] = await Promise.all([
       this.pool.query('select module_id, status, note from public.test_modules where job_id = $1 order by position', [jobId]),
-      this.pool.query(`select * from public.bug_reports where job_id = $1 order by ${SEV_ORDER}, created_at limit ${MAX_ISSUES_IN_CONTEXT}`, [jobId]),
+      this.pool.query(`select b.*, r.check_key, r.module_id as result_module from public.bug_reports b left join public.test_results r on r.id = b.result_id where b.job_id = $1 order by array_position(array['critical','high','medium','low','informational'], b.severity), b.created_at limit ${MAX_ISSUES_IN_CONTEXT}`, [jobId]),
       this.pool.query<{ n: number }>('select count(*)::int as n from public.bug_reports where job_id = $1', [jobId]),
       this.pool.query(`select message from public.test_logs where job_id = $1 and level in ('warn','error') order by id desc limit 12`, [jobId]),
       this.pool.query<{ status: string; n: number }>('select status, count(*)::int as n from public.test_results where job_id = $1 group by status', [jobId]),
@@ -186,7 +192,7 @@ export class ChatService {
       finishedAt: job.finished_at ? new Date(job.finished_at).toISOString() : null,
       counts: Object.fromEntries(counts.rows.map((r) => [r.status, r.n])),
       modules: mods.rows.map((m) => ({ id: m.module_id, label: m.module_id, status: m.status, note: m.note })),
-      issues: bugs.rows.map((b) => ({ code: b.issue_code, severity: b.severity, confidence: b.confidence, category: b.category, title: b.title, description: b.description, affectedUrl: b.affected_url || null, suggestedFix: b.suggested_fix, evidence: b.evidence, ai: b.ai_analysis })),
+      issues: bugs.rows.map((b) => ({ code: b.issue_code, severity: b.severity, confidence: b.confidence, category: b.category, title: b.title, description: b.description, affectedUrl: b.affected_url || null, suggestedFix: b.suggested_fix, evidence: b.evidence, ai: b.ai_analysis, checkKey: b.check_key ?? null, moduleId: b.result_module ?? null })),
       issuesOmitted: Math.max(0, (total.rows[0]?.n ?? 0) - bugs.rows.length),
       recentLogs: logs.rows.map((l) => l.message).reverse(),
       previous,

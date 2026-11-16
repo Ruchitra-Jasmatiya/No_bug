@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+import { m as motion } from 'framer-motion';
 import { Activity, BarChart3, Check, FileClock, Mail, Settings, ShieldAlert, TestTube2, Users } from 'lucide-react';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { BarList, Columns, Legend, SeverityDonut } from '../components/Charts';

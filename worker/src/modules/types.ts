@@ -43,6 +43,8 @@ export interface ModuleContext {
   prior(moduleId: ModuleId): PriorModule | undefined;
   /** Lazily starts the per-job browser. Throws BrowserUnavailableError if it cannot run. */
   browser(): Promise<BrowserSession>;
+  /** Per-job memo shared by every module of one test run (for example the downloaded home page). */
+  shared: Map<string, Promise<unknown>>;
 }
 
 export interface TestModule {

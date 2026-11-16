@@ -213,9 +213,9 @@ export async function capturePage(context: BrowserContext, url: string, options:
       }
     }
     await page.waitForLoadState('load', { timeout: Math.min(options.navigationTimeoutMs, 20_000) }).catch(() => undefined);
-    await page.waitForLoadState('networkidle', { timeout: 3_000 }).catch(() => undefined); // best effort
+    await page.waitForLoadState('networkidle', { timeout: 2_000 }).catch(() => undefined); // best effort
 
-    await Promise.race([Promise.allSettled(pending), new Promise((r) => setTimeout(r, 3000))]);
+    await Promise.race([Promise.allSettled(pending), new Promise((r) => setTimeout(r, 2000))]);
     capture.finalUrl = page.url();
     capture.title = (await page.title().catch(() => '')).slice(0, 300);
     const t = await page
