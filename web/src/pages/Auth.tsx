@@ -1,14 +1,15 @@
 import { m as motion } from 'framer-motion';
-import { ArrowLeft, MailCheck } from 'lucide-react';
+import { ArrowLeft, MessageCircle } from 'lucide-react';
 import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { passwordStrength, validatePassword } from '@nba/shared';
+import { normalizePhone, passwordStrength, validatePassword } from '@nba/shared';
 import { Mascot } from '../components/Mascot';
 import { ApiError, post } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Field, Notice, PasswordInput, Spinner, useDocumentTitle, useInterval, useToast } from '../lib/ui';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const maskPhone = (n: string) => `${n.slice(0, 3)} •••• ••${n.slice(-3)}`;
 
 function AuthShell({ title, subtitle, children, back }: { title: string; subtitle?: string; children: ReactNode; back?: { to: string; label: string } }) {
   return (
@@ -47,7 +48,7 @@ function fieldErrors(e: unknown): Record<string, string> {
 export function Signup() {
   useDocumentTitle('Create account');
   const nav = useNavigate();
-  const [f, setF] = useState({ fullName: '', email: '', phone: '', password: '', confirmPassword: '', termsAccepted: false });
+  const [f, setF] = useState({ fullName: '', email: '', phone: '', whatsapp: '', password: '', confirmPassword: '', termsAccepted: false });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -61,7 +62,8 @@ export function Signup() {
     const e: Record<string, string> = {};
     if (f.fullName.trim().length < 2) e.fullName = 'Please enter your full name.';
     if (!EMAIL_RE.test(f.email.trim())) e.email = 'Please enter a valid email address.';
-    if (f.phone && !/^\+?[0-9][0-9 ()\-]{6,19}$/.test(f.phone.trim())) e.phone = 'Please enter a valid phone number.';
+    if (!normalizePhone(f.phone)) e.phone = 'Enter your contact number with the country code, for example +91 98765 43210.';
+    if (!normalizePhone(f.whatsapp)) e.whatsapp = 'Enter your WhatsApp number with the country code, for example +91 98765 43210.';
     const p = validatePassword(f.password, { email: f.email, name: f.fullName });
     if (p) e.password = p;
     if (f.password !== f.confirmPassword) e.confirmPassword = 'Passwords do not match.';
@@ -77,8 +79,8 @@ export function Signup() {
     if (Object.keys(e).length) return;
     setBusy(true);
     try {
-      const r = await post<{ resendAfterSec: number }>('/api/auth/signup', { ...f, email: f.email.trim(), phone: f.phone.trim() || undefined }, false);
-      nav('/verify-email', { state: { email: f.email.trim().toLowerCase(), resendAfterSec: r.resendAfterSec } });
+      const r = await post<{ resendAfterSec: number }>('/api/auth/signup', { ...f, email: f.email.trim(), phone: f.phone.trim(), whatsapp: f.whatsapp.trim() }, false);
+      nav('/verify-email', { state: { email: f.email.trim().toLowerCase(), whatsapp: normalizePhone(f.whatsapp) ?? undefined, resendAfterSec: r.resendAfterSec } });
     } catch (err) {
       setErrors(fieldErrors(err));
       setError(errMsg(err));
@@ -87,17 +89,24 @@ export function Signup() {
   }
 
   return (
-    <AuthShell title="Create your account" subtitle="Free to start. We email a 6-digit code to confirm it’s you.">
+    <AuthShell title="Create your account" subtitle="Free to start. We send a 6-digit code to your WhatsApp to confirm it’s you.">
       <form onSubmit={submit} noValidate className="stack">
         {error && <Notice kind="error">{error}</Notice>}
         <Field label="Full name" htmlFor="fullName" error={errors.fullName}>
           <input id="fullName" className="input" autoComplete="name" value={f.fullName} onChange={(e) => set('fullName')(e.target.value)} aria-invalid={!!errors.fullName || undefined} aria-describedby={errors.fullName ? 'fullName-err' : undefined} />
         </Field>
-        <Field label="Email" htmlFor="email" error={errors.email}>
+        <Field label="Email" htmlFor="email" error={errors.email} hint="Kept for our records. Codes are not sent here.">
           <input id="email" className="input" type="email" autoComplete="email" value={f.email} onChange={(e) => set('email')(e.target.value)} aria-invalid={!!errors.email || undefined} aria-describedby={errors.email ? 'email-err' : undefined} />
         </Field>
-        <Field label="Phone (optional)" htmlFor="phone" error={errors.phone}>
-          <input id="phone" className="input" type="tel" autoComplete="tel" value={f.phone} onChange={(e) => set('phone')(e.target.value)} aria-invalid={!!errors.phone || undefined} aria-describedby={errors.phone ? 'phone-err' : undefined} />
+        <Field label="Contact number" htmlFor="phone" error={errors.phone} hint="With country code, for example +91 98765 43210.">
+          <input id="phone" className="input" type="tel" autoComplete="tel" placeholder="+91 98765 43210" value={f.phone} onChange={(e) => set('phone')(e.target.value)} aria-invalid={!!errors.phone || undefined} aria-describedby={errors.phone ? 'phone-err' : undefined} />
+        </Field>
+        <Field label="WhatsApp number" htmlFor="whatsapp" error={errors.whatsapp} hint="Your verification code is sent here.">
+          <input id="whatsapp" className="input" type="tel" autoComplete="tel" placeholder="+91 98765 43210" value={f.whatsapp} onChange={(e) => set('whatsapp')(e.target.value)} aria-invalid={!!errors.whatsapp || undefined} aria-describedby={errors.whatsapp ? 'whatsapp-err' : undefined} />
+          <label className="check small" style={{ marginTop: 6 }}>
+            <input type="checkbox" checked={!!f.phone && f.phone === f.whatsapp} onChange={(e) => set('whatsapp')(e.target.checked ? f.phone : '')} />
+            <span>My WhatsApp number is the same as my contact number</span>
+          </label>
         </Field>
         <Field label="Password" htmlFor="password" error={errors.password} hint="At least 8 characters with a letter and a number.">
           <PasswordInput id="password" value={f.password} onChange={set('password')} autoComplete="new-password" invalid={!!errors.password} />
@@ -127,11 +136,11 @@ export function Signup() {
 
 /* ================================================================== OTP verification */
 export function VerifyEmail() {
-  useDocumentTitle('Verify your email');
+  useDocumentTitle('Verify your WhatsApp number');
   const loc = useLocation();
   const nav = useNavigate();
   const toast = useToast();
-  const state = (loc.state ?? {}) as { email?: string; resendAfterSec?: number };
+  const state = (loc.state ?? {}) as { email?: string; whatsapp?: string; resendAfterSec?: number };
   const email = state.email;
   const [digits, setDigits] = useState<string[]>(Array(6).fill(''));
   const [error, setError] = useState<string | null>(null);
@@ -145,8 +154,8 @@ export function VerifyEmail() {
 
   if (!email) {
     return (
-      <AuthShell title="Verify your email">
-        <Notice>Start by creating an account, then enter the code we email you.</Notice>
+      <AuthShell title="Verify your WhatsApp number">
+        <Notice>Start by creating an account, then enter the code we send to your WhatsApp.</Notice>
         <Link className="btn btn-yellow" to="/signup">Create account</Link>
       </AuthShell>
     );
@@ -178,12 +187,12 @@ export function VerifyEmail() {
 
   async function submit(ev: FormEvent) {
     ev.preventDefault();
-    if (code.length !== 6) return setError('Enter the 6-digit code from your email.');
+    if (code.length !== 6) return setError('Enter the 6-digit code from WhatsApp.');
     setBusy(true);
     setError(null);
     try {
       await post('/api/auth/verify-otp', { email, code, purpose: 'signup' }, false);
-      toast('Email verified. You can log in now.');
+      toast('Number verified. You can log in now.');
       nav('/login', { replace: true, state: { email, verified: true } });
     } catch (err) {
       setError(errMsg(err));
@@ -199,7 +208,7 @@ export function VerifyEmail() {
     try {
       const r = await post<{ resendAfterSec: number }>('/api/auth/resend-otp', { email, purpose: 'signup' }, false);
       setCooldown(r.resendAfterSec ?? 60);
-      toast('If the address can be used, a new code is on its way.');
+      toast('If the account can be used, a new code is on its way to WhatsApp.');
     } catch (err) {
       if (err instanceof ApiError && err.retryAfterSec) setCooldown(err.retryAfterSec);
       setError(errMsg(err));
@@ -209,7 +218,7 @@ export function VerifyEmail() {
   }
 
   return (
-    <AuthShell title="Check your email" subtitle={`We sent a 6-digit code to ${email}.`} back={{ to: '/signup', label: 'Use a different email' }}>
+    <AuthShell title="Check WhatsApp" subtitle={state.whatsapp ? `We sent a 6-digit code to the WhatsApp number ${maskPhone(state.whatsapp)}.` : 'We sent a 6-digit code to your WhatsApp number.'} back={{ to: '/signup', label: 'Use a different number' }}>
       <form onSubmit={submit} className="stack" noValidate>
         {error && <Notice kind="error">{error}</Notice>}
         <div className="otp" role="group" aria-label="6-digit verification code">
@@ -217,12 +226,12 @@ export function VerifyEmail() {
             <input key={i} ref={(el) => { refs.current[i] = el; }} inputMode="numeric" autoComplete={i === 0 ? 'one-time-code' : 'off'} maxLength={6} value={d} aria-label={`Digit ${i + 1}`} onChange={(e) => setAt(i, e.target.value)} onKeyDown={(e) => onKey(i, e)} onPaste={onPaste} />
           ))}
         </div>
-        <button className="btn btn-yellow" disabled={busy || code.length !== 6}>{busy ? <Spinner label="Verifying" /> : <><MailCheck size={18} /> Verify email</>}</button>
+        <button className="btn btn-yellow" disabled={busy || code.length !== 6}>{busy ? <Spinner label="Verifying" /> : <><MessageCircle size={18} /> Verify number</>}</button>
         <p className="small muted" style={{ textAlign: 'center' }}>
           Didn’t get it?{' '}
           {cooldown > 0 ? <span aria-live="polite">You can resend in {cooldown}s</span> : <button type="button" className="linklike" onClick={resend} disabled={resending}>Resend code</button>}
         </p>
-        <p className="small muted" style={{ textAlign: 'center' }}>The code expires in 10 minutes and works once. Check your spam folder too.</p>
+        <p className="small muted" style={{ textAlign: 'center' }}>The code expires in 10 minutes and works once. Open WhatsApp to find it.</p>
       </form>
     </AuthShell>
   );
@@ -239,9 +248,10 @@ export function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [wait, setWait] = useState(0);
-  const [hint, setHint] = useState(false);
+  const [attemptsLeft, setAttemptsLeft] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [unverified, setUnverified] = useState(false);
+  const [verifyEmail, setVerifyEmail] = useState<string | null>(null);
 
   useInterval(() => setWait((w) => Math.max(0, w - 1)), wait > 0 ? 1000 : null);
 
@@ -249,7 +259,8 @@ export function Login() {
     ev.preventDefault();
     setError(null);
     setUnverified(false);
-    if (!EMAIL_RE.test(email.trim())) return setError('Please enter a valid email address.');
+    if (wait > 0) return;
+    if (!EMAIL_RE.test(email.trim()) && !normalizePhone(email)) return setError('Enter your email address, or your phone number with the country code.');
     if (!password) return setError('Please enter your password.');
     setBusy(true);
     try {
@@ -257,10 +268,12 @@ export function Login() {
       nav(st.next && st.next.startsWith('/') ? st.next : '/dashboard', { replace: true });
     } catch (err) {
       setError(errMsg(err));
+      setAttemptsLeft(null);
       if (err instanceof ApiError) {
-        if (err.retryAfterSec) setWait(err.retryAfterSec);
-        if (err.details?.captchaRequired) setHint(true);
-        if (err.code === 'email_not_verified') setUnverified(true);
+        if (err.retryAfterSec) { setWait(err.retryAfterSec); setError(null); }
+        const left = (err.details as { attemptsLeft?: unknown } | undefined)?.attemptsLeft;
+        if (typeof left === 'number') setAttemptsLeft(left);
+        if (err.code === 'email_not_verified') { setUnverified(true); if (typeof err.details?.email === 'string') setVerifyEmail(err.details.email); }
       }
       setBusy(false);
     }
@@ -269,13 +282,13 @@ export function Login() {
   return (
     <AuthShell title="Welcome back" subtitle="Log in to see your tests and reports.">
       <form onSubmit={submit} noValidate className="stack">
-        {st.verified && <Notice kind="ok">Email verified. Please log in.</Notice>}
+        {st.verified && <Notice kind="ok">WhatsApp number verified. Please log in.</Notice>}
         {st.reset && <Notice kind="ok">Password changed. Please log in with your new password.</Notice>}
-        {error && <Notice kind="error">{error}{wait > 0 ? ` Try again in ${wait}s.` : ''}</Notice>}
-        {hint && <Notice>Several attempts failed. Further attempts are slowed down automatically to protect your account. You can also <Link to="/forgot-password">reset your password</Link>.</Notice>}
-        {unverified && <Link className="btn btn-ghost" to="/verify-email" state={{ email: email.trim().toLowerCase(), resendAfterSec: 0 }}>Enter verification code</Link>}
-        <Field label="Email" htmlFor="login-email">
-          <input id="login-email" className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        {wait > 0 && <Notice kind="error"><b>Too many wrong attempts.</b> For your protection, login is paused. You can try again in {wait}s, or <Link to="/forgot-password">reset your password</Link>.</Notice>}
+        {error && wait === 0 && <Notice kind="error">{error}{attemptsLeft !== null && attemptsLeft > 0 ? ` You have ${attemptsLeft} ${attemptsLeft === 1 ? 'attempt' : 'attempts'} left before login is paused for a minute.` : ''}</Notice>}
+        {unverified && <Link className="btn btn-ghost" to="/verify-email" state={{ email: (verifyEmail ?? email).trim().toLowerCase(), resendAfterSec: 0 }}>Enter verification code</Link>}
+        <Field label="Email or phone number" htmlFor="login-email">
+          <input id="login-email" className="input" type="text" inputMode="email" autoComplete="username" placeholder="you@example.com or +91 98765 43210" value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
         <Field label="Password" htmlFor="login-password">
           <PasswordInput id="login-password" value={password} onChange={setPassword} autoComplete="current-password" />
@@ -310,7 +323,7 @@ export function ForgotPassword() {
     }
   }
   return (
-    <AuthShell title="Reset your password" subtitle="We’ll email you a 6-digit code." back={{ to: '/login', label: 'Back to log in' }}>
+    <AuthShell title="Reset your password" subtitle="Enter your email. We’ll send a 6-digit code to the WhatsApp number on your account." back={{ to: '/login', label: 'Back to log in' }}>
       <form onSubmit={submit} noValidate className="stack">
         {error && <Notice kind="error">{error}</Notice>}
         <Field label="Email" htmlFor="fp-email"><input id="fp-email" className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
@@ -355,7 +368,7 @@ export function ResetPassword() {
     }
   }
   return (
-    <AuthShell title="Choose a new password" subtitle="Enter the code we emailed you." back={{ to: '/forgot-password', label: 'Send a new code' }}>
+    <AuthShell title="Choose a new password" subtitle="Enter the code we sent to your WhatsApp." back={{ to: '/forgot-password', label: 'Send a new code' }}>
       <form onSubmit={submit} noValidate className="stack">
         {error && <Notice kind="error">{error}</Notice>}
         <Field label="Email" htmlFor="rp-email" error={errors.email}><input id="rp-email" className="input" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>

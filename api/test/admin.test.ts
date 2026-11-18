@@ -21,7 +21,7 @@ suite('admin API', () => {
 
   it('rejects anonymous and non-admin users on every admin route', async () => {
     const user = await api.makeUser();
-    const paths = ['overview', 'analytics', 'system', 'users', 'tests', 'security/events', 'security/logins', 'audit-logs', 'emails', 'settings'];
+    const paths = ['overview', 'analytics', 'system', 'users', 'tests', 'security/events', 'security/logins', 'tests/by-user', 'audit-logs', 'emails', 'settings'];
     for (const p of paths) {
       assert.equal((await api.call('GET', `/api/admin/${p}`)).status, 401, p);
       assert.equal((await api.call('GET', `/api/admin/${p}`, { userId: user })).status, 403, p);
@@ -53,6 +53,40 @@ suite('admin API', () => {
     assert.equal(sys.body.database, true);
     assert.equal(sys.body.ai.configured, false);
     assert.equal(sys.body.adminAlertEmailConfigured, true);
+  });
+
+  it('tests by person: one row per user with counts, a period filter, search and sorting', async () => {
+    const admin = await api.makeUser({ admin: true });
+    const abc = await api.makeUser();
+    const xyz = await api.makeUser();
+    await api.pool.query(`update public.profiles set full_name = 'Abc Person' where id = $1`, [abc]);
+    await api.pool.query(`update public.profiles set full_name = 'Xyz Person' where id = $1`, [xyz]);
+    for (const u of [abc, xyz]) await api.pool.query(`insert into public.test_projects (user_id, name, base_url, hostname) values ($1,'a.test','https://a.test/','a.test') on conflict do nothing`, [u]);
+    const add = (u: string, host: string, ageDays: number) => api.pool.query(
+      `insert into public.test_jobs (project_id, user_id, target_url, hostname, status, selected_modules, created_at) select id,$1,'https://'||$2||'/',$2,'completed',array['console'], now() - make_interval(days => $3::int) from public.test_projects where user_id=$1 limit 1`, [u, host, ageDays]);
+    for (let i = 0; i < 5; i++) await add(abc, 'one.test', 1);
+    await add(abc, 'two.test', 1);
+    await add(abc, 'old.test', 20);
+    await add(xyz, 'three.test', 1);
+    const get = (qs: string) => api.call('GET', `/api/admin/tests/by-user?${qs}`, { userId: admin });
+
+    const all = await get('range=all&search=person');
+    assert.equal(all.status, 200);
+    assert.equal(all.body.total, 2, 'one row per person, not one per test');
+    const row = (b: any, name: string) => b.items.find((i: any) => i.fullName === name);
+    assert.equal(row(all.body, 'Abc Person').tests, 7);
+    assert.equal(row(all.body, 'Abc Person').sites, 3);
+    assert.equal(all.body.items[0].fullName, 'Abc Person', 'default sort is most tests first');
+
+    const week = await get('range=7d&search=person');
+    assert.equal(row(week.body, 'Abc Person').tests, 6, 'the 20-day-old test is outside one week');
+    assert.equal(row(week.body, 'Abc Person').topSites[0].hostname, 'one.test');
+    assert.equal(row(week.body, 'Abc Person').topSites[0].n, 5);
+    assert.equal(week.body.totalTests, 7);
+
+    const byName = await get('range=30d&search=person&sort=name');
+    assert.deepEqual(byName.body.items.map((i: any) => i.fullName), ['Abc Person', 'Xyz Person']);
+    assert.equal((await get('range=7d&search=nobody-matches-this')).body.total, 0);
   });
 
   it('suspends and reactivates users, blocks them immediately, audits, and protects the admin themself', async () => {
@@ -126,7 +160,7 @@ suite('admin API', () => {
     const uniq = () => `sec-${Date.now()}-${++seq}@example.com`;
     async function account(): Promise<string> {
       const email = uniq();
-      await api.call('POST', '/api/auth/signup', { body: { fullName: 'Sec Test', email, password: PW, confirmPassword: PW, termsAccepted: true } });
+      await api.call('POST', '/api/auth/signup', { body: { fullName: 'Sec Test', email, password: PW, confirmPassword: PW, termsAccepted: true, phone: `+9197${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`, whatsapp: `+9198${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}` } });
       await api.call('POST', '/api/auth/verify-otp', { body: { email, code: api.mail.codeFor(email) } });
       api.mail.sent.length = 0;
       return email;
@@ -173,7 +207,8 @@ suite('admin API', () => {
     });
 
     it('flags password spraying: one address, many accounts', async () => {
-      const emails = await Promise.all([account(), account(), account(), account()]);
+      const emails: string[] = [];
+      for (let i = 0; i < 4; i++) emails.push(await account()); // sequential: account() clears the shared mailbox
       for (const e of emails) await seedFailures(e, 3);
       // seed rows use 203.0.113.9, so seed the real client ip too: discover it from one real failure
       await fail(emails[0]!);
@@ -188,7 +223,7 @@ suite('admin API', () => {
       const bare = await startApi({});
       try {
         const email = uniq();
-        await bare.call('POST', '/api/auth/signup', { body: { fullName: 'Sec Test', email, password: PW, confirmPassword: PW, termsAccepted: true } });
+        await bare.call('POST', '/api/auth/signup', { body: { fullName: 'Sec Test', email, password: PW, confirmPassword: PW, termsAccepted: true, phone: `+9197${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`, whatsapp: `+9198${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}` } });
         await bare.call('POST', '/api/auth/verify-otp', { body: { email, code: bare.mail.codeFor(email) } });
         bare.mail.sent.length = 0;
         await bare.pool.query(`insert into public.login_events (email, success, reason, ip, created_at) select $1, false, 'bad_password', '203.0.113.9', now() - interval '10 minutes' from generate_series(1,10)`, [email]);

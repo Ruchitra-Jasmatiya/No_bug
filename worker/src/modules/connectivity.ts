@@ -63,6 +63,24 @@ export const connectivityModule: TestModule = {
             : 'Confirm that the address is correct and that the page is publicly accessible without authentication.',
       });
 
+      // A firewall / bot-protection challenge answers automated visitors differently from real ones, so every later
+      // result would describe the challenge page, not the site. Say so instead of reporting a misleading clean run.
+      const mitigated = res.headers['x-vercel-mitigated'] ?? null;
+      const challenged = Boolean(mitigated) || res.status === 429 || (res.status === 403 && /cloudflare|vercel|akamai|sucuri|imperva/i.test(`${res.headers['server'] ?? ''} ${res.headers['x-vercel-id'] ?? ''}`)) || /just a moment|security checkpoint|attention required|verify you are (a )?human/i.test((res.body ?? '').slice(0, 4000));
+      if (challenged) {
+        outcomes.push({
+          checkKey: 'bot_protection',
+          title: 'Site is challenging automated visitors',
+          status: 'warning',
+          severity: 'high',
+          confidence: 'confirmed',
+          affectedUrl: url,
+          message: `The site answered this test with a bot-protection or rate-limit response (HTTP ${res.status}${mitigated ? `, mitigation: ${mitigated}` : ''}). Results from this run describe that response and may be incomplete or different from run to run.`,
+          evidence: { status: res.status, mitigated, server: res.headers['server'] ?? null },
+          recommendation: 'Allow this test in the site\'s firewall or bot protection (for example a Vercel Firewall or Cloudflare rule for the test runner), or pause attack-challenge mode, then run the test again.',
+        });
+      }
+
       if (res.redirects.length > 0) {
         outcomes.push({
           checkKey: 'redirect_chain',

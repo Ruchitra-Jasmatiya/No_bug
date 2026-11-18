@@ -69,7 +69,7 @@ export class AdminService {
 
   async analytics(days: number) {
     const d = Math.min(90, Math.max(1, Math.floor(days) || 14));
-    const [perDay, severities, categories, duration, signups] = await Promise.all([
+    const [perDay, severities, categories, duration, signups, sites] = await Promise.all([
       this.pool.query(
         `select to_char(g.day, 'YYYY-MM-DD') as day, coalesce(t.total,0)::int as total, coalesce(t.completed,0)::int as completed, coalesce(t.failed,0)::int as failed
            from generate_series(date_trunc('day', now()) - make_interval(days => $1::int - 1), date_trunc('day', now()), interval '1 day') as g(day)
@@ -86,9 +86,15 @@ export class AdminService {
            left join (select date_trunc('day', created_at) as day, count(*) as n from public.profiles group by 1) s on s.day = g.day order by g.day`,
         [d],
       ),
+      this.pool.query(
+        `select hostname, count(*)::int as tests, count(distinct user_id)::int as users, max(created_at) as last_at
+           from public.test_jobs where created_at > now() - make_interval(days => $1::int) group by hostname order by tests desc, last_at desc limit 10`,
+        [d],
+      ),
     ]);
     return {
       days: d,
+      topSites: sites.rows.map((r: any) => ({ hostname: r.hostname, tests: r.tests, users: r.users, lastTestedAt: iso(r.last_at) })),
       testsPerDay: perDay.rows,
       signupsPerDay: signups.rows,
       severity: Object.fromEntries(severities.rows.map((r: any) => [r.severity, r.n])),
@@ -123,10 +129,10 @@ export class AdminService {
     const search = (q.search ?? '').trim().slice(0, 100);
     const status = q.status === 'suspended' || q.status === 'active' ? q.status : null;
     const like = search ? `%${search.replace(/[\\%_]/g, '\\$&')}%` : null;
-    const where = `($1::text is null or lower(p.email) like lower($1) or lower(p.full_name) like lower($1)) and ($2::text is null or p.account_status = $2)`;
+    const where = `($1::text is null or lower(p.email) like lower($1) or lower(p.full_name) like lower($1) or p.phone like $1 or p.whatsapp_number like $1) and ($2::text is null or p.account_status = $2)`;
     const [rows, total] = await Promise.all([
       this.pool.query(
-        `select p.id, p.email, p.full_name, p.account_status, p.suspended_reason, p.email_verified_at, p.last_login_at, p.created_at,
+        `select p.id, p.email, p.full_name, p.phone, p.whatsapp_number, p.account_status, p.suspended_reason, p.email_verified_at, p.last_login_at, p.created_at,
                 exists (select 1 from public.user_roles r where r.user_id = p.id and r.role='admin') as is_admin,
                 (select count(*)::int from public.test_jobs j where j.user_id = p.id) as tests
            from public.profiles p where ${where} order by p.created_at desc limit $3 offset $4`,
@@ -136,7 +142,7 @@ export class AdminService {
     ]);
     return {
       page, pageSize, total: total.rows[0].n,
-      items: rows.rows.map((r: any) => ({ id: r.id, email: r.email, fullName: r.full_name, status: r.account_status, suspendedReason: r.suspended_reason, verified: Boolean(r.email_verified_at), role: r.is_admin ? 'admin' : 'user', lastLoginAt: iso(r.last_login_at), createdAt: iso(r.created_at), tests: r.tests })),
+      items: rows.rows.map((r: any) => ({ id: r.id, email: r.email, fullName: r.full_name, phone: r.phone, whatsappNumber: r.whatsapp_number, status: r.account_status, suspendedReason: r.suspended_reason, verified: Boolean(r.email_verified_at), role: r.is_admin ? 'admin' : 'user', lastLoginAt: iso(r.last_login_at), createdAt: iso(r.created_at), tests: r.tests })),
     };
   }
 
@@ -176,6 +182,44 @@ export class AdminService {
       this.pool.query(`select count(*)::int as n from public.test_jobs where ($1::text is null or status = $1)`, [status]),
     ]);
     return { page, pageSize, total: total.rows[0].n, items: rows.rows.map((r: any) => ({ id: r.id, hostname: r.hostname, targetUrl: r.target_url, status: r.status, progressPct: r.progress_pct, createdAt: iso(r.created_at), finishedAt: iso(r.finished_at), errorMessage: r.error_message, bugs: r.summary?.bugs ?? null, overall: r.summary?.overall ?? null, userEmail: r.email })) };
+  }
+
+  /** One row per person: how many tests they ran in the period and which websites. */
+  async listTestsByUser(q: { range?: string; search?: string; sort?: string; page?: unknown; pageSize?: unknown }) {
+    const { page, pageSize, offset } = clampPage(q.page, q.pageSize);
+    const days = q.range === '7d' ? 7 : q.range === '30d' ? 30 : q.range === '1d' ? 1 : null;
+    const search = (q.search ?? '').trim().slice(0, 100);
+    const like = search ? `%${search.replace(/[\\%_]/g, '\\$&')}%` : null;
+    const order = q.sort === 'name' ? 'lower(a.full_name) asc, a.tests desc' : q.sort === 'recent' ? 'a.last_test_at desc, a.tests desc' : 'a.tests desc, lower(a.full_name) asc';
+    const base = `
+      with agg as (
+        select p.id, p.full_name, p.email, count(*)::int as tests,
+               count(*) filter (where j.status = 'completed')::int as completed,
+               count(*) filter (where j.status = 'failed')::int as failed,
+               count(distinct j.hostname)::int as sites,
+               coalesce(sum((j.summary->>'bugs')::int), 0)::int as issues,
+               max(j.created_at) as last_test_at
+          from public.test_jobs j join public.profiles p on p.id = j.user_id
+         where ($1::int is null or j.created_at > now() - make_interval(days => $1))
+           and ($2::text is null or lower(p.email) like lower($2) or lower(p.full_name) like lower($2))
+         group by p.id, p.full_name, p.email
+      )`;
+    const [rows, total] = await Promise.all([
+      this.pool.query(
+        `${base}
+         select a.*, (select coalesce(json_agg(x order by x.n desc), '[]'::json) from (
+                select j.hostname, count(*)::int as n from public.test_jobs j
+                 where j.user_id = a.id and ($1::int is null or j.created_at > now() - make_interval(days => $1))
+                 group by j.hostname order by n desc limit 20) x) as top_sites
+           from agg a order by ${order} limit $3 offset $4`,
+        [days, like, pageSize, offset],
+      ),
+      this.pool.query(`${base} select count(*)::int as n, coalesce(sum(tests),0)::int as tests from agg`, [days, like]),
+    ]);
+    return {
+      page, pageSize, total: total.rows[0].n, totalTests: total.rows[0].tests,
+      items: rows.rows.map((r: any) => ({ userId: r.id, fullName: r.full_name, email: r.email, tests: r.tests, completed: r.completed, failed: r.failed, sites: r.sites, issues: r.issues, lastTestAt: iso(r.last_test_at), topSites: r.top_sites })),
+    };
   }
 
   async listSecurityEvents(q: { acknowledged?: string; page?: unknown; pageSize?: unknown }) {

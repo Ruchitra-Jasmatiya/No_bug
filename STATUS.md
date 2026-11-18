@@ -1,7 +1,7 @@
 # NO BUGS ALLOWED — build status
 
 > Honest status. Nothing is listed as working unless it was run and verified.
-> Last verified: 2026-11-11 (Node 22, PostgreSQL 16, Redis 7, real Chrome).
+> Last verified: 2026-11-17 (Node 22, PostgreSQL 16, Redis 7, real Chrome).
 
 **All 7 phases are built.** This is a complete codebase that has been verified end-to-end *locally*. It has **not** been
 run against your real Supabase / Resend / Upstash / Railway / Anthropic accounts — see "Not verified" below.
@@ -39,3 +39,26 @@ run against your real Supabase / Resend / Upstash / Railway / Anthropic accounts
 - Tests are passive: no authenticated crawling, form submission with real data, or destructive actions.
 - Chromium downloads are blocked and permissions (camera, mic, location) denied during tests.
 - Admin settings are edited as validated JSON, not bespoke forms.
+
+
+## Update 2026-11-17
+
+Verified locally (Node 22, PostgreSQL 16, Redis 7, real Chrome): typecheck of all packages, shared/api/worker/web unit and integration suites, and the real-browser end-to-end flow.
+
+Built and tested:
+- WhatsApp sign-up and login (contact + WhatsApp numbers, code on WhatsApp, login by email or phone, reset by WhatsApp), provider adapters for Meta and Twilio tested with fakes.
+- Result honesty: a timed-out test is retried once; reports show coverage and never read as clean when tests did not finish; bot-protection responses are reported; a consistency test checks that repeated runs of the same page give identical findings.
+- Front-end-only default scope (API probing module switched off by default; admin can re-enable).
+- Admin additions: phone/WhatsApp in Users, most-tested websites, `scripts/make-admin.mjs`.
+- White + fresh-green theme, profile menu, login-first landing.
+
+NOT verified (cannot be from the build environment): real WhatsApp delivery (Meta or Twilio), real Supabase/Resend/Upstash/AI providers, and timings against real websites. Test these in your environment before launch.
+
+## Update 2026-11-18
+- Theme changed to royal blue and slate (no green except pass status). README banner, PDF export and charts follow it.
+- Report groups repeated issues ("found N times", with where they occur) instead of one row per screen size.
+- Check bars use the status colours: passed green, failed red, warnings orange.
+- Fixed a race in an admin API test (it cleared a shared mailbox while accounts were created in parallel).
+- Last run: shared 141/141, api all passing (admin suite repeated 5x clean), worker 57/57, web 4/4, browser e2e 18/18 (includes full flow). Not verifiable here: real WhatsApp delivery, real Supabase/Resend/Upstash/AI, real-website accuracy and timing.
+- Login protection: N wrong passwords per account per window (default 5 per 60 s; LOGIN_MAX_ATTEMPTS / LOGIN_WINDOW_SEC), "N attempts left" shown, then a 60 s pause with a countdown; a per-address limit (30 failures / 15 min) stops one address cycling through many accounts. Sign-up, code check, resend and password-reset requests are rate limited too.
+- Admin > Tests > "By person": one row per person with test count, websites, completed, failed, issues; filter 24 h / 7 d / 30 d / all time; search; sort by most tests, name or most recent; click a row to see the websites checked.

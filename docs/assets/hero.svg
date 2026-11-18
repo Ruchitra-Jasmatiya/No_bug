@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="380" viewBox="0 0 1200 380" role="img" aria-labelledby="t d">
+  <title id="t">NO BUGS ALLOWED</title>
+  <desc id="d">An animated test run: a scanner sweeps a web page while checks turn green, orange or red.</desc>
+  <style>
+    .f{font-family:Inter,'Segoe UI',system-ui,-apple-system,Roboto,sans-serif}
+    .h{font-weight:800;font-size:54px;letter-spacing:1.5px;fill:#0f172a}
+    .s{font-weight:500;font-size:22px;fill:#475569}
+    .r{font-weight:600;font-size:15px;fill:#0f172a}
+    .m{font-weight:500;font-size:13px;fill:#76849a}
+    .row{opacity:0;animation:in 12s infinite}
+    .r1{animation-delay:.3s}.r2{animation-delay:1.4s}.r3{animation-delay:2.5s}.r4{animation-delay:3.6s}.r5{animation-delay:4.7s}
+    @keyframes in{0%{opacity:0;transform:translateX(-12px)}4%,92%{opacity:1;transform:none}98%,100%{opacity:0}}
+    .pulse{animation:pulse 2s ease-in-out infinite;transform-origin:center;transform-box:fill-box}
+    @keyframes pulse{50%{transform:scale(1.08)}}
+    .scan{animation:scan 3.2s ease-in-out infinite alternate}
+    @keyframes scan{from{transform:translateY(0)}to{transform:translateY(206px)}}
+    .bar{transform-origin:left;animation:bar 12s linear infinite}
+    @keyframes bar{0%{transform:scaleX(0)}92%{transform:scaleX(1)}100%{transform:scaleX(1)}}
+    @media (prefers-reduced-motion: reduce){*{animation:none!important}.row{opacity:1}}
+  </style>
+  <rect width="1200" height="380" fill="#ffffff"/>
+  <rect x="1" y="1" width="1198" height="378" rx="22" fill="none" stroke="#e3e8f2" stroke-width="2"/>
+  <g transform="translate(70,70)">
+    <g class="pulse"><rect width="84" height="84" rx="20" fill="#2549c9"/>
+      <g fill="none" stroke="#fbd23f" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" transform="translate(42,44)">
+        <ellipse cx="0" cy="3" rx="11" ry="15"/><path d="M-6-12c0-6 12-6 12 0M0-9V18M-11 0h-9M11 0h9M-10 10l-8 6M10 10l8 6M-10-7l-8-6M10-7l8-6"/></g></g>
+    <text class="f h" x="112" y="38">NO BUGS ALLOWED</text>
+    <text class="f s" x="112" y="74">Find the bugs. Fix the problems. Launch with confidence.</text>
+  </g>
+  <g transform="translate(70,196)" class="f">
+    <text class="m" x="0" y="0">FRONT-END TEST PLAN</text>
+    <g class="row r1" transform="translate(0,22)"><circle cx="9" cy="9" r="8" fill="#16a34a"/><text class="r" x="28" y="15">Pagination &amp; internal pages</text></g>
+    <g class="row r2" transform="translate(0,56)"><circle cx="9" cy="9" r="8" fill="#16a34a"/><text class="r" x="28" y="15">Images, links &amp; URL validation</text></g>
+    <g class="row r3" transform="translate(0,90)"><circle cx="9" cy="9" r="8" fill="#ea7a0c"/><text class="r" x="28" y="15">Accessibility &amp; SEO</text></g>
+    <g class="row r4" transform="translate(0,124)"><circle cx="9" cy="9" r="8" fill="#dc2626"/><text class="r" x="28" y="15">Responsive layout &amp; console errors</text></g>
+  </g>
+  <g transform="translate(640,64)">
+    <rect width="490" height="262" rx="16" fill="#f6f8fc" stroke="#cbd5e4" stroke-width="2"/>
+    <rect width="490" height="40" rx="16" fill="#eef3ff"/><rect y="24" width="490" height="16" fill="#eef3ff"/>
+    <circle cx="26" cy="20" r="6" fill="#dc2626"/><circle cx="46" cy="20" r="6" fill="#ea7a0c"/><circle cx="66" cy="20" r="6" fill="#16a34a"/>
+    <rect x="92" y="9" width="300" height="22" rx="11" fill="#fff" stroke="#e3e8f2"/>
+    <rect x="28" y="62" width="200" height="14" rx="7" fill="#e3e8f2"/><rect x="28" y="90" width="430" height="9" rx="4.5" fill="#e3e8f2"/>
+    <rect x="28" y="108" width="380" height="9" rx="4.5" fill="#e3e8f2"/>
+    <rect x="28" y="136" width="130" height="80" rx="10" fill="#dfe8ff"/><rect x="170" y="136" width="130" height="80" rx="10" fill="#fff6d6"/><rect x="312" y="136" width="146" height="80" rx="10" fill="#fde8e8"/>
+    <rect x="28" y="232" width="430" height="10" rx="5" fill="#e3e8f2"/><rect class="bar" x="28" y="232" width="430" height="10" rx="5" fill="#2549c9"/>
+    <g class="scan"><rect x="8" y="50" width="474" height="4" rx="2" fill="#3b66f0" opacity=".9"/><rect x="8" y="54" width="474" height="26" fill="#3b66f0" opacity=".10"/></g>
+  </g>
+</svg>

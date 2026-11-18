@@ -1,11 +1,12 @@
 import { AnimatePresence, m as motion } from 'framer-motion';
-import { LogOut, ShieldCheck } from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { BrandMark } from './Mascot';
 import { BugsyWidget } from './BugsyWidget';
 import { ActiveTestBanner } from './ActiveTestBanner';
+import { ProfileMenu } from './ProfileMenu';
 
 export function Layout() {
   const { user, logout, loading } = useAuth();
@@ -30,7 +31,7 @@ export function Layout() {
   );
   const doLogout = async () => {
     await logout();
-    nav('/');
+    nav('/login');
   };
 
   return (
@@ -45,11 +46,7 @@ export function Layout() {
           <nav className="nav-links" aria-label="Main">{links}</nav>
           <div className="nav-actions">
             {loading ? null : user ? (
-              <>
-                <span className="small muted hide-mobile" style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis' }}>{user.fullName || user.email}</span>
-                {user.role === 'admin' && <span className="tag"><ShieldCheck size={14} /> Admin</span>}
-                <button className="btn btn-ghost btn-sm" onClick={doLogout}><LogOut size={16} /> Log out</button>
-              </>
+              <ProfileMenu user={user} onLogout={doLogout} />
             ) : (
               <>
                 <Link className="btn btn-ghost btn-sm" to="/login">Log in</Link>

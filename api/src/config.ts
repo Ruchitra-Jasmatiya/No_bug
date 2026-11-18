@@ -13,6 +13,9 @@ const schema = z.object({
   SUPABASE_JWT_SECRET: z.string().min(16).optional(),
   /** Comma separated list of allowed browser origins. */
   CORS_ORIGINS: z.string().default('http://localhost:5173'),
+  /** Wrong passwords allowed per account inside one window before it is locked for the whole window. */
+  LOGIN_MAX_ATTEMPTS: z.coerce.number().int().min(2).max(20).default(5),
+  LOGIN_WINDOW_SEC: z.coerce.number().int().min(10).max(3600).default(60),
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),
   /** Secret used to key OTP hashes. 32+ random characters. Server-side only. */
   SESSION_SECRET: z.string().min(32, 'SESSION_SECRET must be at least 32 characters'),
@@ -21,6 +24,15 @@ const schema = z.object({
   SUPABASE_ANON_KEY: z.string().min(1).optional(),
   RESEND_API_KEY: z.string().min(1).optional(),
   EMAIL_FROM: z.string().min(3).optional(),
+  /** One-time codes are delivered on WhatsApp. 'console' prints the code in the API terminal (development only). */
+  WHATSAPP_PROVIDER: z.enum(['meta', 'twilio', 'console']).optional(),
+  WHATSAPP_PHONE_NUMBER_ID: z.string().min(1).optional(),
+  WHATSAPP_ACCESS_TOKEN: z.string().min(1).optional(),
+  WHATSAPP_OTP_TEMPLATE: z.string().min(1).optional(),
+  WHATSAPP_TEMPLATE_LANGUAGE: z.string().min(2).optional(),
+  TWILIO_ACCOUNT_SID: z.string().min(1).optional(),
+  TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
+  TWILIO_WHATSAPP_FROM: z.string().min(5).optional(),
   /** Receives security alerts. Never hardcoded; unset means events are recorded but no email is sent. */
   ADMIN_NOTIFICATION_EMAIL: z.string().email().optional(),
 });
@@ -53,7 +65,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ApiConfig {
   }
   if (d.NODE_ENV === 'production') {
     if (authProvider !== 'supabase') throw new Error('Invalid API configuration: the local auth provider is for development and tests only; use Supabase Auth in production');
-    if (!d.RESEND_API_KEY || !d.EMAIL_FROM) throw new Error('Invalid API configuration: RESEND_API_KEY and EMAIL_FROM are required in production (email OTP cannot work without them)');
+    if (d.WHATSAPP_PROVIDER === 'console') throw new Error('Invalid API configuration: WHATSAPP_PROVIDER=console is for development only');
+    if (!d.WHATSAPP_PROVIDER && (!d.RESEND_API_KEY || !d.EMAIL_FROM)) throw new Error('Invalid API configuration: set WHATSAPP_PROVIDER (meta or twilio) with its credentials, or RESEND_API_KEY and EMAIL_FROM, in production (one-time codes cannot be delivered otherwise)');
   }
   return {
     ...parsed.data,

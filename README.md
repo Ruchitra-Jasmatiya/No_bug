@@ -1,323 +1,210 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=waving&color=8FA98A&height=230&section=header&text=NO%20BUGS%20ALLOWED&fontSize=62&fontColor=2F3E2D&fontAlignY=38&animation=fadeIn&desc=AI-assisted%20website%20testing&descSize=22&descAlignY=60&descColor=2F3E2D" alt="NO BUGS ALLOWED" width="100%"/>
+<img src="docs/assets/hero.svg" alt="NO BUGS ALLOWED: an animated test run" width="100%"/>
 
-<a href="https://github.com/Ruchitra-Jasmatiya/No_bug">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=600&size=22&duration=2800&pause=900&color=4F6B4B&center=true&vCenter=true&width=700&height=50&lines=Find+the+bugs.;Fix+the+problems.;Launch+with+confidence." alt="Find the bugs. Fix the problems. Launch with confidence." />
-</a>
+<br/>
 
-### Submit a URL. A real browser tests it. You get a report with evidence, severity and fixes.
+![Node](https://img.shields.io/badge/Node-22%2B-2549c9?style=for-the-badge&logo=node.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-2549c9?style=for-the-badge&logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-18-2549c9?style=for-the-badge&logo=react&logoColor=white)
+![Playwright](https://img.shields.io/badge/Playwright-real%20Chrome-2549c9?style=for-the-badge&logo=playwright&logoColor=white)
+![Postgres](https://img.shields.io/badge/Supabase-Postgres-2549c9?style=for-the-badge&logo=supabase&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-unit%20%2B%20e2e-16a34a?style=for-the-badge)
 
-![Node.js](https://img.shields.io/badge/Node.js-22+-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat-square&logo=typescript&logoColor=white)
-![React](https://img.shields.io/badge/React-Vite-61DAFB?style=flat-square&logo=react&logoColor=black)
-![Express](https://img.shields.io/badge/API-Express-000000?style=flat-square&logo=express&logoColor=white)
-![Playwright](https://img.shields.io/badge/Worker-Playwright-2EAD33?style=flat-square&logo=playwright&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-3ECF8E?style=flat-square&logo=supabase&logoColor=white)
-![Redis](https://img.shields.io/badge/Queue-Redis%20%2B%20BullMQ-DC382D?style=flat-square&logo=redis&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-ready-2496ED?style=flat-square&logo=docker&logoColor=white)
+### Honest front-end testing for any website. Paste a URL, get an evidence-backed report in minutes.
 
-[**Quick start**](#-quick-start) &nbsp;·&nbsp; [**How it works**](#-how-it-works) &nbsp;·&nbsp; [**What it tests**](#-what-it-tests) &nbsp;·&nbsp; [**API**](#-api) &nbsp;·&nbsp; [**Deploy**](#-deploying) &nbsp;·&nbsp; [**Status**](#-project-status)
+[Quick start](#-quick-start) · [How it works](#-how-it-works) · [What gets tested](#-what-gets-tested) · [Admin panel](#-admin-panel) · [WhatsApp sign-up](#-whatsapp-sign-up) · [Deploy](#-deploying)
 
 </div>
 
-<br/>
+---
 
-## ✨ What is this?
+## Why this exists
 
-**NO BUGS ALLOWED** is a website testing platform. Paste in a URL and a background worker drives a **real Chromium browser** against it, runs a suite of checks, and hands back a report that shows exactly what it found, how serious it is, and how to fix it. The built-in assistant is called **BUGSY**.
+Most "website checkers" return a score and a vague list. **NO BUGS ALLOWED** works like a QA engineer: a real Chrome browser opens
+your site, every check records what it saw (page, element, status code, console line), and the report says exactly **which test ran,
+on which page, whether it passed, what failed, why, and how to fix it**. Its assistant, **BUGSY**, explains any finding in plain language.
 
-- 🔎 **Evidence, not guesses.** Every finding is something the tester actually observed: a failed request, a console error, a missing header, a broken link.
-- 🧭 **Severity and recommended fixes** on every bug, with filters, copy-able fixes and a PDF export.
-- ⚡ **Fast.** Modules run in parallel (`MODULE_CONCURRENCY`, default 5), with live progress, per-test status and an activity log.
-- 💥 **Crash-safe.** Progress is checkpointed in PostgreSQL. If a worker dies mid-test, another one picks the job up and runs only the unfinished modules.
-- 🤖 **BUGSY.** Ask questions about your results. It works with no AI key at all (it answers from stored test evidence) and uses an AI model when you configure one.
-- 🔒 **Safe by design.** SSRF protection, a guarded browser proxy, no granted permissions, passive and non-destructive checks only.
+> **Honesty rules, enforced in code**
+> - A test that did not run is never counted as passed. Timed-out tests are retried once, then shown as *did not finish*.
+> - A report that is missing tests can never read as clean: it shows `Coverage: X of Y tests finished`.
+> - It says *"No issues detected in the tests performed"*, never *"bug-free"*.
+> - A file or line number is only shown when the test actually recorded one. BUGSY never invents it.
+> - Identical, unchanged pages give identical findings (covered by an automated consistency test).
 
-> [!IMPORTANT]
-> Only test sites you own or are authorised to test. The app asks every user to confirm this before a test starts.
+## Highlights
 
-<br/>
+| | |
+|---|---|
+| **Fast** | Tests run in parallel (`MODULE_CONCURRENCY`, default 5), viewports and probes run concurrently, shared page downloads are cached per run. Typical target: 1 to 2 minutes. |
+| **Transparent** | A *Tests performed* side panel lists every test with its real status, duration and counts. Open one to see each check, its URL, evidence and fix. |
+| **Colour-coded** | Green = passed, red = failed, orange = warning, grey = not run. |
+| **BUGSY assistant** | Answers from your stored test evidence, with or without an AI key. With a key it adds AI explanations and falls back to the built-in assistant on any failure. |
+| **WhatsApp sign-up** | Contact and WhatsApp numbers at sign-up, one-time codes delivered on WhatsApp, login with email or phone. |
+| **Admin panel** | Users, logins, every test, most-tested sites, security events, email log and live settings that change what users see. |
+| **Safe** | Private networks blocked (SSRF-proof, DNS-rebinding-proof), passive non-destructive tests, hashed one-time codes, rotating refresh tokens. |
 
-## 🧠 How it works
+## 🧪 What gets tested
+
+Front end only. Your backend is never probed or modified.
+
+| Area | Checks |
+|---|---|
+| Connectivity | DNS, HTTP status, HTTPS, redirects, content type, bot-protection detection |
+| Page inspection and console | Real browser load, JavaScript errors with source and line when recorded, failed requests |
+| **Pagination** | Numbered links, next/previous, `rel=next`, broken page links, identical content between pages, loops, "load more" buttons really clicked |
+| **Site pages and URLs** | Internal pages respond, 4xx/5xx, missing and duplicate titles, slow pages, redirect chains, `noindex` |
+| **Images and links** | Broken images and broken links |
+| UI and responsive | Layout problems and layouts at several viewport sizes |
+| Functional | Forms, buttons, navigation, passive interaction probes |
+| Accessibility | axe-core rules, labels, contrast, landmarks |
+| SEO | Title, description, canonical, headings, structured data |
+| Performance | Load timing, resource weight, render-blocking resources |
+| Security (passive) | Headers, cookies, exposed files |
+| Visual regression and PWA | Screenshot comparison against the previous run, manifest and service worker |
+
+The set of enabled tests, timeouts and crawl limits is controlled from the admin panel.
+
+## 🏗 How it works
 
 ```mermaid
 flowchart LR
-    W["Web app<br/>React + Vite"] -->|submit URL| A["API<br/>Express · auth · SSRF check"]
-    A -->|job id| R[("Redis<br/>BullMQ queue")]
-    R -->|pull job| K["Worker<br/>Playwright + Chromium"]
-    A -->|job row| P[("PostgreSQL · Supabase<br/>source of truth · RLS")]
-    K -->|results, logs, checkpoints| P
-
-    style W fill:#F6F1E3,stroke:#8FA98A,color:#2F3E2D
-    style A fill:#F6F1E3,stroke:#8FA98A,color:#2F3E2D
-    style R fill:#F6F1E3,stroke:#8FA98A,color:#2F3E2D
-    style K fill:#F6F1E3,stroke:#8FA98A,color:#2F3E2D
-    style P fill:#F4E3A1,stroke:#C9A93A,color:#2F3E2D
+  U([User browser]) -->|HTTPS| W[React + Vite web app]
+  W -->|/api| A[Express API]
+  A -->|job id| Q[(Redis / BullMQ)]
+  A <--> D[(Supabase Postgres<br/>source of truth)]
+  Q --> K[Worker + real Chrome]
+  K -->|checkpoints, results, logs| D
+  A -. one-time codes .-> WA[WhatsApp provider<br/>Meta or Twilio]
+  A -. optional .-> AI[AI provider]
 ```
 
-- **The database is the source of truth.** Job state, module checkpoints, results and logs live in PostgreSQL. Redis only carries "please run job X". If Redis is wiped, the worker's reaper re-enqueues from the database.
-- **Recovery.** Each module's outcome is saved in a single transaction. After a crash, another worker claims the job once its heartbeat goes stale and runs only the unfinished modules. Finished modules are never rerun.
-- **Browser isolation.** Chromium is launched through a local guarded proxy that resolves and validates every destination at connection time (this defeats DNS rebinding). It allows only ports 80, 443, 8080 and 8443, grants no permissions (camera, microphone, location, clipboard), and blocks service workers and downloads.
+- **The database is the source of truth.** Redis only carries "please run job X". If Redis is wiped, the worker's reaper re-enqueues from the database.
+- **Parallel scheduler.** Gate tests (connectivity, browser launch, page inspection) run first in order, the middle tests run in a pool, AI analysis and the report run last.
+- **Recovery.** Each test's outcome is saved in one transaction. After a crash another worker resumes only the unfinished tests.
+- **Browser isolation.** Chromium goes through a guarded proxy that validates every destination at connection time, allows only ports 80/443/8080/8443, and grants no permissions.
 
-### 🪞 Honesty rules, enforced in code
-
-> [!NOTE]
-> A testing tool is only useful if you can trust its "all clear". These rules are built into the code, not just the docs.
-
-| Rule | What it means |
-|---|---|
-| **Skipped is not passed** | A skipped or blocked module is never counted as a pass. |
-| **Incomplete runs are flagged** | If a selected module was skipped, blocked or failed, the whole run is marked *incomplete*. |
-| **No "bug-free" claims** | A clean report says *"No issues detected in the tests performed."* and nothing stronger. |
-| **AI can't rewrite the evidence** | AI output is stored separately. It can never change evidence, severity, confidence or status. |
-| **BUGSY won't invent answers** | With AI off it says so and still shows real test data. |
-
-<br/>
-
-## 🔍 What it tests
-
-Every module reports what it actually observed. A check that doesn't apply (for example, pagination on a page without any) is reported as **skipped (not applicable)**, never as a pass.
-
-| Module | What it looks at |
-|---|---|
-| ♿ **Accessibility** | Keyboard navigation and visible focus, plus checks on the rendered page |
-| 🔐 **Security** | Transport, security headers, information disclosure, CORS, cookies, and exposed sensitive paths (verified by content signature, so a generic 200 page isn't misreported) |
-| 🔗 **Links & images** | Broken links and images |
-| 🗺 **Site pages & URL validation** | Crawls same-site pages linked from the start page and reports what each URL returned. Plain `GET` only; action-like links (log out, delete, unsubscribe) are never requested |
-| 📄 **Pagination** | Pager controls, the chain of "next" links, and a real click on "Load more" style buttons |
-| 📱 **Responsive** | Multiple viewports measured at once, each in an isolated browser context, including the viewport meta tag |
-| 🎨 **UI & layout** | Clipped or overflowing content, overlapping text blocks, layout shift |
-| 👁 **Visual regression** | Compares against a stored baseline. The first run records the baseline and reports *info*, not a pass |
-| ⚙️ **Functional** | Interactive elements and tabs; forms are inspected, never submitted. Permission-gated features are reported as *blocked* |
-| 🧯 **Console & network** | Console errors and failed network requests |
-| 🔌 **API calls** | The XHR/fetch calls the page makes on its own while loading. Nothing is invented or replayed |
-| 🚀 **Performance** | Page load and performance measurements |
-| 📦 **PWA** | Service worker and installability signals (Chromium) |
-| 🔎 **SEO** | `robots.txt`, sitemap and on-page SEO |
-| 🤖 **AI analysis** | Plain-language explanations of bugs the tests really found. Skipped, and reported as skipped, when no AI is configured |
-
-<br/>
+Folders: `shared/` (types, schemas, SSRF library, built-in assistant) · `api/` (Express) · `worker/` (Playwright engine and test modules) · `web/` (React) · `supabase/` (migrations) · `scripts/` · `e2e/` · `docs/`.
 
 ## 🚀 Quick start
 
-**Requirements:** Node 22+, Docker (for Redis), a PostgreSQL database (Supabase or local), Chrome or Chromium.
+Requirements: **Node 22+**, a **PostgreSQL** database (Supabase or local), **Redis**, **Google Chrome**.
 
 ```bash
-# 0. get the code
-git clone https://github.com/Ruchitra-Jasmatiya/No_bug.git
-cd No_bug
-
-# 1. install
 npm install
-npx playwright install chromium          # or set CHROME_EXECUTABLE_PATH to a system Chrome
-
-# 2. configure
-cp .env.example .env                     # then edit .env (see "Environment variables")
-
-# 3. Redis
-docker compose up -d redis
-
-# 4. database (see "Database setup" below), then:
-npm run db:migrate
-
-# 5. run (three terminals)
-npm run dev:api                          # http://localhost:4000/healthz
-npm run dev:worker
-npm run dev:web                          # http://localhost:5173 (proxies /api to :4000)
-
-# 6. verify
-npm run typecheck && npm test
+npm run build:shared
+cp .env.example .env            # fill in the values, see "Configuration"
+node --env-file=.env scripts/migrate.mjs
 ```
 
-Prefer containers? `docker compose up --build` starts the API on `:4000`, the worker and Redis.
-
-<details>
-<summary><b>🗄 Database setup</b></summary>
-
-<br/>
-
-**Supabase (recommended, and used in production)**
-
-1. Create a project at [supabase.com](https://supabase.com).
-2. Project Settings → Database → copy the connection string into `SUPABASE_DB_URL`.
-3. Project Settings → API → copy the project URL into `SUPABASE_URL`.
-4. Run `npm run db:migrate`. It applies `supabase/migrations/*.sql` in order, is idempotent, and records what it has applied in `schema_migrations`.
-5. Grant yourself admin once, in the SQL editor:
-
-```sql
-insert into public.user_roles (user_id, role) values ('<your auth.users id>', 'admin');
-```
-
-**Plain local PostgreSQL (no Supabase)**
+Run three processes (three terminals):
 
 ```bash
-SUPABASE_DB_URL=postgresql://postgres@localhost:5432/nba npm run db:migrate:local
+npm run dev:api       # http://localhost:4000/healthz
+npm run dev:worker    # runs the tests
+npm run dev:web       # http://localhost:5173
 ```
 
-This first applies `supabase/local/00_auth_stub.sql`, which recreates the minimal `auth` schema and roles. **Never run that file against Supabase.**
+> Run the API and the worker with **`PORT` unset** in `.env` (the API defaults to 4000). If both read the same `PORT`, the worker crashes with `EADDRINUSE`.
 
-</details>
+Open http://localhost:5173. You land on the sign-in page; create an account, verify with the code, then paste a URL.
 
-<details>
-<summary><b>🔧 Environment variables</b></summary>
+**Trying it without a WhatsApp account:** set `WHATSAPP_PROVIDER=console` in `.env` (development only). The 6-digit code is printed in the API terminal.
 
-<br/>
+**Make yourself an admin** (after signing up):
 
-See [`.env.example`](.env.example) for the full list.
+```bash
+node --env-file=.env scripts/make-admin.mjs you@example.com
+```
 
-- Secrets (`SUPABASE_DB_URL`, `SUPABASE_JWT_SECRET`, `REDIS_URL`, `SESSION_SECRET`, `RESEND_API_KEY`, `AI_API_KEY`) are **server-side only**.
-- Browser variables must start with `VITE_` and are public. Never put a secret in one.
-- `ADMIN_NOTIFICATION_EMAIL` is never hardcoded; the address is read only from that variable.
-- **Email:** create a [Resend](https://resend.com) account, verify a sending domain, then set `RESEND_API_KEY` and `EMAIL_FROM`. Without them the API cannot send sign-up codes. It fails loudly and never silently drops or logs a code.
-- **AI / BUGSY:** set `AI_API_KEY` (and optionally `AI_PROVIDER`, `AI_MODEL`) on **both** the API and the worker. Without it everything still works and the UI says AI is off.
-- **Database TLS:** if your provider's certificate chain is rejected by Node, set `DB_SSL_REJECT_UNAUTHORIZED=false`. It is strict by default.
+Log out and in again, then open `/admin`.
 
-</details>
+## ⚙️ Configuration
 
-<br/>
+See [`.env.example`](.env.example) for every variable with comments. The important ones:
+
+| Variable | Purpose |
+|---|---|
+| `SUPABASE_DB_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | Database and authentication |
+| `REDIS_URL` | Job queue (Upstash `rediss://...` works) |
+| `SESSION_SECRET` | 32+ random characters |
+| `WHATSAPP_PROVIDER` | `meta`, `twilio`, or `console` (dev only) plus that provider's credentials |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Account and admin notification emails (the code fallback for accounts without a WhatsApp number) |
+| `ADMIN_NOTIFICATION_EMAIL` | Where security alerts are sent. Never hard-coded |
+| `MODULE_CONCURRENCY` | Tests run in parallel inside one run (1 to 8, default 5) |
+| `CHROME_EXECUTABLE_PATH` | Path to Chrome if Playwright's browser is not installed |
+| `DB_SSL_REJECT_UNAUTHORIZED` | Set `false` only if your provider's certificate chain is rejected |
+| `ANTHROPIC_API_KEY` | Optional AI explanations. BUGSY works without it |
+
+## 💬 WhatsApp sign-up
+
+1. The sign-up form asks for name, email (stored for records only), **contact number** and **WhatsApp number** (international format, e.g. `+91 98765 43210`).
+2. A 6-digit one-time code is sent to the WhatsApp number. Codes are random, stored only as a keyed hash, expire in 10 minutes, work once, die after 5 wrong guesses and are rate-limited per number and per IP.
+3. After verification the user signs in with **email or phone number** plus password. Password reset codes also go to WhatsApp.
+4. Accounts that have no WhatsApp number (for example an old admin account) fall back to email codes.
+
+Providers: **Meta WhatsApp Business Cloud API** (needs an approved authentication template whose body takes one variable) or **Twilio WhatsApp**.
+
+## 🛡 Admin panel
+
+`/admin`, visible only to accounts with the admin role. The role is checked on the server for every `/api/admin` request, in the database, never from a client claim.
+
+| Tab | What you can do |
+|---|---|
+| Overview | Users, signups, tests per day, severities, categories, **most tested websites** |
+| Users | Search by name, email or phone, see contact and WhatsApp numbers, suspend, change roles |
+| Tests | Every test from every user, with its URL, owner and status |
+| Security and Audit log | Sign-in history, failed attempts, security events and the audit log |
+| Emails | Every email sent and its delivery status |
+| Settings and System | Enabled tests, timeouts, crawl limits (applied to the next test and shown to users) and queue and system health |
 
 ## 🔌 API
 
-All `/api/tests*` routes require `Authorization: Bearer <access token>`.
-
-<details>
-<summary><b>Tests</b></summary>
-
-<br/>
-
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/tests` | Create a test `{ url, authorizationConfirmed: true, modules?, idempotencyKey? }` → 202 |
-| `GET` | `/api/tests` | List my tests (`page`, `pageSize`) |
-| `GET` | `/api/tests/active` | My unfinished tests (restores a session after a refresh or reopened browser) |
-| `GET` | `/api/tests/:id` | One test |
-| `GET` | `/api/tests/:id/progress?after=<logCursor>` | Real progress: job, per-module state, counts, new logs |
-| `GET` | `/api/tests/:id/results` | Every test with its real status, duration, counts and per-check results |
-| `POST` | `/api/tests/:id/resume` | Make a failed test runnable again from its checkpoints |
-| `POST` | `/api/tests/:id/restart` | New test for the same URL; the old active one is cancelled |
-| `POST` | `/api/tests/:id/cancel` | Cancel (immediately if queued, at the next heartbeat if running) |
-| `GET` | `/api/tests/:id/report` | Full report (409 until finished) |
-| `GET` | `/api/tests/:id/bugs?severity=&category=` | Bug reports |
-| `GET` | `/api/modules` | Which modules exist, are implemented and are enabled |
-| `GET` | `/healthz` | Database and Redis health |
+| POST | `/api/auth/signup` | `{ fullName, email, phone, whatsapp, password, confirmPassword, termsAccepted: true }` sends a WhatsApp code |
+| POST | `/api/auth/verify-otp` | `{ email, code }` |
+| POST | `/api/auth/resend-otp` | `{ email, purpose? }` |
+| POST | `/api/auth/login` | `{ email (or phone), password }` returns `{ accessToken, user }` plus an HttpOnly refresh cookie |
+| POST | `/api/auth/forgot-password`, `/reset-password` | code via WhatsApp |
+| GET | `/api/auth/me` | the signed-in user |
+| POST | `/api/tests` | start a test `{ url, authorizationConfirmed: true, modules?, idempotencyKey? }` |
+| GET | `/api/tests/:id`, `/progress`, `/results`, `/report` | live and final results |
+| GET | `/api/modules` | the enabled tests |
+| POST | `/api/chat/...` | BUGSY conversations |
 
-</details>
+## Deploying
 
-<details>
-<summary><b>Authentication</b></summary>
+**Worker → Railway or Render** (never Vercel — browser tests are long-running)
+1. Create a service from this repo using `worker/Dockerfile` (build context = repository root).
+2. Set `SUPABASE_DB_URL`, `REDIS_URL` (Upstash `rediss://…`), `NODE_ENV=production`, `PORT` (Render needs one; `/healthz`).
+3. Give it ≥ 2 GB RAM. Scale by adding instances: jobs are claimed atomically, so workers never double-run a job.
+4. **Network isolation (important):** the worker runs untrusted websites in a browser. Apply an egress firewall that
+   blocks private ranges and your cloud metadata service. The application layer already blocks them, but defence in
+   depth is part of the design. Never give the worker credentials beyond the database URL and Redis URL.
 
-<br/>
+**API → Railway/Render** using `api/Dockerfile`: `SUPABASE_DB_URL`, `REDIS_URL`, `SUPABASE_URL`, `CORS_ORIGINS=https://<your-vercel-domain>`, `TRUST_PROXY=1`.
 
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/api/auth/signup` | `{ fullName, email, phone?, password, confirmPassword, termsAccepted: true }` → 202, emails a 6-digit code |
-| `POST` | `/api/auth/verify-otp` | `{ email, code }` → marks the email verified (no sign-in before this) |
-| `POST` | `/api/auth/resend-otp` | `{ email, purpose? }` (60 s cooldown, 6 codes per hour) |
-| `POST` | `/api/auth/login` | `{ email, password }` → `{ accessToken, user }` + HttpOnly refresh cookie |
-| `POST` | `/api/auth/refresh` | Rotates the refresh cookie (needs header `X-Requested-With: nba-web`) |
-| `POST` | `/api/auth/logout` | Revokes the session and clears the cookie |
-| `POST` | `/api/auth/forgot-password` | `{ email }` → always the same response (no account enumeration) |
-| `POST` | `/api/auth/reset-password` | `{ email, code, newPassword, confirmPassword }` → signs out every other session |
-| `GET` | `/api/auth/me` | The signed-in user |
-
-Also available: `/api/chat/*` (BUGSY status, conversations, messages) and `/api/admin/*` (overview, analytics, system, users, tests, security, audit logs, emails, settings; admin only).
-
-</details>
-
-<br/>
-
-## 🔒 Security
-
-- **Codes:** random, stored only as a keyed hash, expire in 10 minutes, single use, die after 5 wrong guesses, rate-limited.
-- **Sign-in:** wrong-password and unknown-email responses are identical. Failed attempts trigger progressive delays (5 s doubling up to 15 min) that expire on their own, never a permanent lock.
-- **Sessions:** refresh tokens rotate, and replaying an old one revokes the whole session. The refresh token is HttpOnly + SameSite=Lax and never appears in a response body. Suspended accounts can't sign in or refresh.
-- **Authorisation:** admin access is decided from `public.user_roles` on the server and in RLS, never from a client-supplied claim. Test results are readable only by their owner, and another user's id returns an identical 404.
-- **Monitoring:** more than 10 failed logins in 15 minutes (configurable) creates a security event and emails `ADMIN_NOTIFICATION_EMAIL`, once per subject per window.
-- **AI prompts:** site-controlled text is sent to the model only inside delimited, sanitised, secret-redacted blocks.
-- **Passwords:** handled by Supabase Auth in production. This codebase never stores a plaintext password or code.
-
-<br/>
-
-## 🚢 Deploying
-
-| Part | Where | Notes |
-|---|---|---|
-| **Web** | Vercel | Import the repo (root directory = repo root; `web/vercel.json` is picked up) and set the `/api` rewrite to your API domain. Cookies stay same-origin, so no `VITE_` variable is needed |
-| **API** | Railway or Render, `api/Dockerfile` | `SUPABASE_DB_URL`, `REDIS_URL`, `SUPABASE_URL`, `CORS_ORIGINS=https://<your-vercel-domain>`, `TRUST_PROXY=1` |
-| **Worker** | Railway or Render, `worker/Dockerfile` | Never Vercel: browser tests are long-running. Build context = repo root. Set `SUPABASE_DB_URL`, `REDIS_URL` (Upstash `rediss://…`), `NODE_ENV=production`, `PORT`. Give it at least 2 GB RAM. Scale by adding instances; jobs are claimed atomically, so workers never double-run a job |
-
-> [!WARNING]
-> **Isolate the worker's network.** It runs untrusted websites in a browser. Apply an egress firewall that blocks private ranges and your cloud metadata service. The application layer already blocks them, but defence in depth is part of the design. Never give the worker credentials beyond the database URL and Redis URL.
-
-<br/>
-
-## 🧪 Testing
+## ✅ Testing
 
 ```bash
-npm test                         # shared + api + worker (DB-backed suites skip without TEST_DATABASE_URL)
-
-# include RLS, API and worker end-to-end tests
-TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5432/nba_test npm test
-
-npm run build -w web
-
-# SIGKILL recovery + the built web app in a real browser
-TEST_DATABASE_URL=... TEST_REDIS_URL=redis://127.0.0.1:6379 \
-CHROME_EXECUTABLE_PATH=/path/to/chrome npm run test:e2e
+npm run typecheck
+TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5432/nba_test \
+TEST_REDIS_URL=redis://127.0.0.1:6379 \
+CHROME_EXECUTABLE_PATH=/usr/bin/google-chrome \
+npm test && npm run build -w web && npm run test:e2e
 ```
 
-A database-backed suite that can't reach a database reports **skipped**, never passed. Real-site timing depends on the target and your worker machine; benchmark with `worker/bench/bench.ts`.
+Unit and integration suites cover the shared library, the API (auth, WhatsApp flow, admin, chat), the worker (every module, pagination, site pages, **result consistency across repeated runs**) and a real-browser end-to-end flow (sign-up, WhatsApp code, login, live test, refresh protection, report, BUGSY, admin guard, mobile layout). A DB-backed suite that cannot reach a database reports **skipped**, never passed.
 
-<br/>
+## Security notes
+- Passwords are handled by Supabase Auth (production); OTPs are hashed. This codebase never stores a plaintext password or code.
+- Admin access is decided from `public.user_roles` on the server and in RLS, never from a client-supplied claim.
+- Test results are only readable by their owner (RLS and API ownership checks). Another user's id returns an identical 404.
+- Users must confirm they are authorised to test a target. Testing is passive and non-destructive.
 
-## 📁 Project structure
+## 📄 Docs
 
-```text
-No_bug/
-├── shared/      types, schemas and the SSRF protection library
-├── api/         Express API: auth, tests, BUGSY chat, admin
-├── worker/      Playwright engine and the test modules (worker/src/modules)
-├── web/         React + Vite frontend
-├── supabase/    SQL migrations
-├── scripts/     migration runner
-└── e2e/         full-system and real-browser tests
-```
+[STATUS.md](STATUS.md) lists exactly what was verified and what could not be verified in the build environment (real Supabase, Resend, Upstash, WhatsApp and AI providers, and real-website timings).
 
-<br/>
-
-## ✅ Project status
-
-All phases are built and verified **locally**. [`STATUS.md`](STATUS.md) has the full, honest breakdown. In short:
-
-- [x] Unit and integration tests across `shared`, `api`, `worker` and `web`
-- [x] Full-system test: API → Redis → worker → Chromium → Postgres, including SIGKILL mid-test and resume on a second worker
-- [x] The built web app exercised in real Chrome: sign-up, OTP, login, live test, report, PDF, BUGSY, admin protection, mobile layout
-- [ ] Verified against real **Supabase**, **Resend**, **Upstash** and the **Anthropic API** accounts
-- [ ] Verified on Railway, Render and Vercel deployments, and via `docker build`
-- [ ] Browsers other than Chrome and real-device mobile testing
-- [ ] Load and scale testing
-
-**Known limitations:** tests are passive (no authenticated crawling, no real-data form submission, no destructive actions). No CAPTCHA provider is integrated. Admin settings are edited as validated JSON. The Terms and Privacy pages are starter templates, not legal advice.
-
-<br/>
-
-## 🤝 Contributing
-
-Issues and pull requests are welcome. Before opening a PR, please run:
-
-```bash
-npm run typecheck && npm test
-```
-
-<br/>
-
-<div align="center">
-
-**If this project helps you, a ⭐ on GitHub means a lot.**
-
-Built by [**Ruchitra Jasmatiya**](https://github.com/Ruchitra-Jasmatiya)
-
-<img src="https://capsule-render.vercel.app/api?type=waving&color=8FA98A&height=120&section=footer" alt="" width="100%"/>
-
-</div>
+<div align="center"><sub>Built so that "all green" actually means all green.</sub></div>

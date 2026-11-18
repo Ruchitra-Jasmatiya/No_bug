@@ -6,6 +6,8 @@ export interface User {
   email: string;
   fullName: string;
   role: 'user' | 'admin';
+  phone?: string | null;
+  whatsappNumber?: string | null;
 }
 
 interface AuthState {
@@ -26,7 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadMe = useCallback(async () => {
     const r = await get<{ user: User }>('/api/auth/me');
-    setUser({ id: r.user.id, email: r.user.email, fullName: r.user.fullName, role: r.user.role });
+    setUser({ id: r.user.id, email: r.user.email, fullName: r.user.fullName, role: r.user.role, phone: r.user.phone ?? null, whatsappNumber: r.user.whatsappNumber ?? null });
   }, []);
 
   useEffect(() => {
@@ -53,7 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const r = await api<{ accessToken: string; user: User }>('/api/auth/login', { method: 'POST', json: { email, password }, auth: false });
     tokenStore.set(r.accessToken);
     setUser(r.user);
-  }, []);
+    await loadMe().catch(() => undefined); // fills in the contact and WhatsApp numbers for the profile menu
+  }, [loadMe]);
 
   const logout = useCallback(async () => {
     try {

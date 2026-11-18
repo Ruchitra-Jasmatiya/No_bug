@@ -34,6 +34,9 @@ const MIME: Record<string, string> = { '.html': 'text/html', '.js': 'text/javasc
 suite('browser end-to-end (built web app)', { timeout: 600_000 }, () => {
   const pool = new pg.Pool({ connectionString: DB, max: 6 });
   const mail = new MemoryTransport();
+  // Codes go to WhatsApp. This fake provider records what would be sent, exactly like a real one would deliver it.
+  const waCodes = new Map<string, string>();
+  const whatsapp = { name: 'meta' as const, async sendOtp(to: string, code: string) { waCodes.set(to, code); return { providerId: 'e2e' }; } };
   let site: Awaited<ReturnType<typeof startFixtureSite>>;
   let apiServer: http.Server;
   let webServer: http.Server;
@@ -51,7 +54,7 @@ suite('browser end-to-end (built web app)', { timeout: 600_000 }, () => {
     site = await startFixtureSite();
     const { app } = createApp({
       config: testApiConfig({ REDIS_URL: REDIS!, CORS_ORIGINS: 'http://localhost', corsOrigins: ['http://localhost'], databaseUrl: DB! }),
-      pool, queue: createJobQueue(REDIS!), logger: createLogger('silent'), policy: { allowPrivateTargets: true }, emailTransport: mail,
+      pool, queue: createJobQueue(REDIS!), logger: createLogger('silent'), policy: { allowPrivateTargets: true }, emailTransport: mail, whatsapp,
     });
     apiServer = await new Promise<http.Server>((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
     const apiPort = (apiServer.address() as AddressInfo).port;
@@ -96,29 +99,23 @@ suite('browser end-to-end (built web app)', { timeout: 600_000 }, () => {
 
   const shot = async (name: string) => { if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage: true }); };
 
-  it('home page renders with the required hero text and a working URL box', async () => {
+  it('a signed-out visitor lands on the login page first, with a way to sign up', async () => {
     await page.goto(webBase + '/');
-    await page.getByRole('heading', { name: 'Your Website Deserves a Bug-Free Experience.' }).waitFor();
-    assert.ok(await page.getByPlaceholder('Enter your website URL (https://example.com)').isVisible());
-    assert.ok(await page.getByRole('button', { name: /Start Testing/ }).isVisible());
-    await shot('home-desktop');
-    await page.locator('#how').scrollIntoViewIfNeeded();
-    await page.locator('.step').first().waitFor({ state: 'visible' });
-    assert.equal(await page.locator('.step').count(), 4);
-  });
-
-  it('signed-out Start Testing sends the visitor to sign up (URL remembered)', async () => {
-    await page.getByPlaceholder('Enter your website URL (https://example.com)').fill(site.base + '/buggy');
-    await page.getByLabel(/I own this website/).check();
-    await page.getByRole('button', { name: /Start Testing/ }).click();
+    await page.waitForURL('**/login');
+    await page.getByRole('heading', { name: 'Welcome back' }).waitFor();
+    await shot('login');
+    await page.getByRole('link', { name: 'Create an account' }).click();
     await page.waitForURL('**/signup');
   });
 
-  it('sign-up validates, then emails a real code and verifies it', async () => {
+  it('sign-up validates, sends a code to WhatsApp (not email), and verifies it', async () => {
     await page.getByRole('button', { name: 'Create account' }).click();
     await page.getByText('Please enter your full name.').waitFor();
+    await page.getByText(/WhatsApp number with the country code/).waitFor();
     await page.getByLabel('Full name').fill('Eddie Tester');
     await page.getByLabel('Email').fill(email);
+    await page.locator('#phone').fill('+91 98765 43210');
+    await page.locator('#whatsapp').fill('+91 98765 43211');
     await page.locator('#password').fill('short');
     await page.locator('#confirmPassword').fill('short');
     await page.getByRole('button', { name: 'Create account' }).click();
@@ -130,28 +127,67 @@ suite('browser end-to-end (built web app)', { timeout: 600_000 }, () => {
     await page.getByLabel(/I agree to the/).check();
     await page.getByRole('button', { name: 'Create account' }).click();
     await page.waitForURL('**/verify-email');
+    await page.getByText(/WhatsApp number \+91/).waitFor();
+    assert.equal(mail.sent.filter((m) => m.to === email).length, 0, 'no email code may be sent');
     // wrong code first
     for (let i = 0; i < 6; i++) await page.getByLabel(`Digit ${i + 1}`).fill('0');
-    await page.getByRole('button', { name: /Verify email/ }).click();
+    await page.getByRole('button', { name: /Verify number/ }).click();
     await page.getByText(/incorrect/i).waitFor();
     await shot('verify-otp');
-    const code = mail.codeFor(email);
+    const code = waCodes.get('+919876543211')!;
+    assert.match(code, /^\d{6}$/);
     await page.getByLabel('Digit 1').click();
     await page.keyboard.insertText(code); // paste-style entry across the boxes
-    await page.getByRole('button', { name: /Verify email/ }).click();
+    await page.getByRole('button', { name: /Verify number/ }).click();
     await page.waitForURL('**/login');
-    await page.getByText('Email verified. Please log in.').first().waitFor();
+    await page.getByText('WhatsApp number verified. Please log in.').first().waitFor();
+  });
+
+  it('repeated wrong passwords show attempts left, then pause login for a minute', async () => {
+    await page.goto(webBase + '/login');
+    await page.locator('#login-email').fill('someone-else@example.com');
+    for (let i = 1; i <= 4; i++) {
+      await page.locator('#login-password').fill('Wrong-Password-' + i);
+      await page.getByRole('button', { name: 'Log in' }).click();
+      await page.getByText(new RegExp(`You have ${5 - i} attempts? left`)).waitFor();
+    }
+    await shot('login-attempts-left');
+    await page.locator('#login-password').fill('Wrong-Password-5');
+    await page.getByRole('button', { name: 'Log in' }).click();
+    await page.getByText(/Too many wrong attempts/).waitFor();
+    assert.ok(await page.getByRole('button', { name: /Wait \d+s/ }).isDisabled(), 'the button is disabled while paused');
+    await shot('login-locked');
+    await page.goto(webBase + '/login'); // a fresh page for the real user; the lock above belongs to the other address
+    await page.locator('#login-email').fill(email);
   });
 
   it('login rejects a wrong password, accepts the right one, and shows the dashboard', async () => {
     await page.locator('#login-password').fill('Wrong-Password-1');
     await page.getByRole('button', { name: 'Log in' }).click();
-    await page.getByText('Incorrect email or password.').first().waitFor();
+    await page.getByText('Incorrect email, phone number or password.').first().waitFor();
     await page.locator('#login-password').fill(password);
     await page.getByRole('button', { name: 'Log in' }).click();
     await page.waitForURL('**/dashboard');
     await page.getByRole('heading', { name: /ready to squash some bugs/ }).waitFor();
     await shot('dashboard-empty');
+    // profile menu in the nav bar
+    await page.getByRole('button', { name: /Eddie Tester/ }).click();
+    await page.getByText('+919876543211').waitFor();
+    await shot('profile-menu');
+    await page.keyboard.press('Escape');
+  });
+
+  it('the signed-in home page shows the hero text and a working URL box', async () => {
+    await page.goto(webBase + '/');
+    await page.getByRole('heading', { name: 'Your Website Deserves a Bug-Free Experience.' }).waitFor();
+    assert.ok(await page.getByPlaceholder('Enter your website URL (https://example.com)').isVisible());
+    assert.ok(await page.getByRole('button', { name: /Start Testing/ }).isVisible());
+    await shot('home-desktop');
+    await page.locator('#how').scrollIntoViewIfNeeded();
+    await page.locator('.step').first().waitFor({ state: 'visible' });
+    assert.equal(await page.locator('.step').count(), 4);
+    await page.goto(webBase + '/dashboard');
+    await page.getByRole('heading', { name: /ready to squash some bugs/ }).waitFor();
   });
 
   it('a session survives a page reload (silent refresh from the HttpOnly cookie)', async () => {
@@ -247,7 +283,7 @@ suite('browser end-to-end (built web app)', { timeout: 600_000 }, () => {
     assert.ok(await send.isDisabled(), 'Send is disabled until something is typed');
     await input.fill('What should I fix first?');
     await send.click();
-    await chat.getByText(/Fix in this order/).waitFor({ timeout: 20_000 });
+    await chat.getByText(/Fix in this order/).first().waitFor({ timeout: 20_000 });
     await shot('bugsy-answer');
     await chat.getByRole('button', { name: 'Close chat' }).click();
   });
@@ -260,11 +296,33 @@ suite('browser end-to-end (built web app)', { timeout: 600_000 }, () => {
     await page.waitForURL('**/dashboard');
   });
 
+  it('an admin sees every /admin tab with real data', async () => {
+    const uid = (await pool.query(`select id from public.profiles where email = $1`, [email])).rows[0].id;
+    await pool.query(`insert into public.user_roles (user_id, role) values ($1, 'admin') on conflict do nothing`, [uid]);
+    try {
+      await page.goto(webBase + '/login');
+      await page.waitForURL('**/dashboard').catch(() => undefined);
+      await page.reload();
+      await page.goto(webBase + '/admin');
+      await page.getByRole('tab', { name: 'Overview' }).waitFor();
+      for (const tab of ['Overview', 'Users', 'Tests', 'Security', 'Audit log', 'Emails', 'Settings', 'System']) {
+        await page.getByRole('tab', { name: tab }).click();
+        await page.waitForTimeout(700);
+        await shot(`admin-${tab.toLowerCase().replace(' ', '-')}`);
+      }
+      await page.getByRole('tab', { name: 'Users' }).click();
+      await page.getByText(email).first().waitFor();
+    } finally {
+      await pool.query(`delete from public.user_roles where user_id = $1 and role = 'admin'`, [uid]);
+    }
+  });
+
   it('mobile layout: no horizontal scroll and a working hamburger menu', async () => {
     const m = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 2, isMobile: true });
     const mp = await m.newPage();
     await mp.goto(webBase + '/');
-    await mp.getByRole('heading', { name: 'Your Website Deserves a Bug-Free Experience.' }).waitFor();
+    await mp.waitForURL('**/login');
+    await mp.getByRole('heading', { name: 'Welcome back' }).waitFor();
     const overflow = await mp.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert.ok(overflow <= 1, `horizontal overflow ${overflow}px`);
     await mp.getByRole('button', { name: 'Menu' }).click();
@@ -276,15 +334,16 @@ suite('browser end-to-end (built web app)', { timeout: 600_000 }, () => {
       const o = await mp.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       assert.ok(o <= 1, `${p} overflows by ${o}px`);
     }
-    if (SHOTS) { await mp.goto(webBase + '/'); await mp.screenshot({ path: path.join(SHOTS, 'home-mobile.png'), fullPage: true }); }
+    if (SHOTS) { await mp.goto(webBase + '/signup'); await mp.screenshot({ path: path.join(SHOTS, 'signup-mobile.png'), fullPage: true }); }
     await m.close();
   });
 
   it('logout clears the session', async () => {
     await page.goto(webBase + '/dashboard');
     await page.getByRole('heading', { name: /ready to squash some bugs/ }).waitFor({ timeout: 15_000 }).catch(async () => { await shot('logout-debug'); throw new Error('dashboard did not load before logout: ' + page.url()); });
-    await page.getByRole('button', { name: /Log out/ }).first().click();
-    await page.waitForURL(webBase + '/');
+    await page.getByRole('button', { name: /Eddie Tester/ }).click();
+    await page.getByRole('menuitem', { name: /Log out/ }).click();
+    await page.waitForURL('**/login');
     await page.goto(webBase + '/dashboard');
     await page.waitForURL('**/login');
   });

@@ -153,48 +153,58 @@ export class Orchestrator {
         await store.appendLog(job.id, row.module_id, 'info', `${def.label}: started${attempt > 1 ? ` (attempt ${attempt})` : ''}.`);
         const started = Date.now();
 
-        const moduleAbort = new AbortController();
-        const onJobAbort = () => moduleAbort.abort(jobAbort.signal.reason);
-        jobAbort.signal.addEventListener('abort', onJobAbort, { once: true });
-        const moduleTimer = setTimeout(() => moduleAbort.abort(new Error('module timeout')), settings.timeouts.moduleMs);
-        moduleTimer.unref();
+        // A module that times out or crashes is retried once before it is reported as not finished, because a
+        // slow first page load or a busy machine should not turn into a missing result.
+        let result: ModuleResult | undefined;
+        for (let pass = 1; pass <= 2 && !result; pass++) {
+          const moduleAbort = new AbortController();
+          const onJobAbort = () => moduleAbort.abort(jobAbort.signal.reason);
+          jobAbort.signal.addEventListener('abort', onJobAbort, { once: true });
+          const moduleTimer = setTimeout(() => moduleAbort.abort(new Error('module timeout')), settings.timeouts.moduleMs);
+          moduleTimer.unref();
 
-        const ctx: ModuleContext = {
-          job,
-          store,
-          target: { url: job.target_url, hostname: job.hostname },
-          settings,
-          policy,
-          config,
-          ai: this.deps.ai ?? null,
-          signal: moduleAbort.signal,
-          log: (level, message, meta) => store.appendLog(job.id, row.module_id, level, message, meta),
-          prior: (id) => priors.get(id),
-          browser: async () => {
-            await browser.start();
-            return browser;
-          },
-          shared: sharedCache,
-        };
+          const ctx: ModuleContext = {
+            job,
+            store,
+            target: { url: job.target_url, hostname: job.hostname },
+            settings,
+            policy,
+            config,
+            ai: this.deps.ai ?? null,
+            signal: moduleAbort.signal,
+            log: (level, message, meta) => store.appendLog(job.id, row.module_id, level, message, meta),
+            prior: (id) => priors.get(id),
+            browser: async () => {
+              await browser.start();
+              return browser;
+            },
+            shared: sharedCache,
+          };
 
-        let result: ModuleResult;
-        try {
-          result = await withAbort(impl.run(ctx), moduleAbort.signal);
-        } catch (err) {
-          if (stop) {
-            // Interrupted by cancel / shutdown / lost ownership: give the module back, do not settle it.
-            await store.releaseModule(job.id, row.module_id).catch(() => undefined);
-            return;
+          try {
+            result = await withAbort(impl.run(ctx), moduleAbort.signal);
+          } catch (err) {
+            if (stop) {
+              // Interrupted by cancel / shutdown / lost ownership: give the module back, do not settle it.
+              await store.releaseModule(job.id, row.module_id).catch(() => undefined);
+              return;
+            }
+            const timedOut = (err as Error)?.message === 'module timeout';
+            if (pass === 1) {
+              sharedCache.clear(); // a failed page download must not be reused by the retry
+              await store.appendLog(job.id, row.module_id, 'warn', `${def.label} ${timedOut ? 'timed out' : 'hit an error'}; trying once more.`, { detail: String((err as Error)?.message ?? err).slice(0, 300) });
+              continue;
+            }
+            const msg = timedOut ? `${def.label} did not finish: it timed out twice (${Math.round(settings.timeouts.moduleMs / 1000)}s each). Its results are missing from this report.` : `${def.label} did not finish: it failed twice. Its results are missing from this report.`;
+            log.error({ err: String(err), module: row.module_id }, 'module crashed');
+            result = { status: timedOut ? 'blocked' : 'failed', note: msg, error: msg, outcomes: [] };
+            await store.appendLog(job.id, row.module_id, 'error', msg, { detail: String((err as Error)?.message ?? err).slice(0, 300) });
+          } finally {
+            clearTimeout(moduleTimer);
+            jobAbort.signal.removeEventListener('abort', onJobAbort);
           }
-          const timedOut = (err as Error)?.message === 'module timeout';
-          const msg = timedOut ? `${def.label} timed out after ${Math.round(settings.timeouts.moduleMs / 1000)}s and was stopped so the rest of the test could finish.` : `${def.label} could not be completed.`;
-          log.error({ err: String(err), module: row.module_id }, 'module crashed');
-          result = { status: timedOut ? 'blocked' : 'failed', note: msg, error: msg, outcomes: [] };
-          await store.appendLog(job.id, row.module_id, 'error', msg, { detail: String((err as Error)?.message ?? err).slice(0, 300) });
-        } finally {
-          clearTimeout(moduleTimer);
-          jobAbort.signal.removeEventListener('abort', onJobAbort);
         }
+        if (!result) return;
 
         await this.settle(job, row, result, browser, Date.now() - started);
         priors.set(row.module_id, { status: result.status, checkpoint: result.checkpoint ?? {} });

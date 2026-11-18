@@ -161,7 +161,7 @@ suite('SupabaseIdentity vs stand-in GoTrue', () => {
     };
     try {
       await pool.query('delete from public.auth_attempts');
-      const su = await post('/api/auth/signup', { fullName: 'Sb Flow', email, password: 'Flow-pass-123', confirmPassword: 'Flow-pass-123', termsAccepted: true });
+      const su = await post('/api/auth/signup', { fullName: 'Sb Flow', email, password: 'Flow-pass-123', confirmPassword: 'Flow-pass-123', termsAccepted: true, phone: '+919876543210', whatsapp: `+9198${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}` });
       assert.equal(su.status, 202);
       assert.equal((await post('/api/auth/login', { email, password: 'Flow-pass-123' })).body.error.code, 'email_not_verified');
       assert.equal((await post('/api/auth/verify-otp', { email, code: mail.codeFor(email) })).status, 200);

@@ -97,6 +97,15 @@ function Overview() {
         <section className="card"><h3 style={{ marginBottom: 12 }}>Issues by severity (14 days)</h3>
           <div className="row" style={{ gap: 20, justifyContent: 'center' }}><SeverityDonut counts={a.data.severity} /><Legend counts={a.data.severity} /></div>
         </section>
+        <section className="card"><h3 style={{ marginBottom: 12 }}>Most tested websites (14 days)</h3>
+          {a.data.topSites?.length ? (
+            <div className="coverage">
+              {a.data.topSites.map((w: any) => (
+                <div key={w.hostname} className="coverage-row"><span className="grow" style={{ overflowWrap: 'anywhere' }}><b>{w.hostname}</b><span className="small muted"> · {w.users} user{w.users === 1 ? '' : 's'}</span></span><span className="count count-pass" title="Tests run">{w.tests}</span></div>
+              ))}
+            </div>
+          ) : <p className="muted small">No tests in this period.</p>}
+        </section>
         <section className="card"><h3 style={{ marginBottom: 12 }}>Top categories</h3>
           <BarList items={a.data.topCategories.map((c: any) => ({ label: c.category, value: c.count }))} />
           <p className="small muted" style={{ marginTop: 12 }}>Average test duration: {a.data.avgDurationSeconds ? formatDuration(a.data.avgDurationSeconds * 1000) : 'no completed tests yet'}</p>
@@ -123,7 +132,7 @@ function UsersTab() {
   return (
     <div className="stack">
       <div className="row">
-        <input className="input" style={{ maxWidth: 320 }} placeholder="Search name or email" aria-label="Search users" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <input className="input" style={{ maxWidth: 320 }} placeholder="Search name, email or phone" aria-label="Search users" value={search} onChange={(e) => setSearch(e.target.value)} />
         <select className="input" style={{ maxWidth: 180 }} aria-label="Filter by status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}>
           <option value="">All statuses</option><option value="active">Active</option><option value="suspended">Suspended</option>
         </select>
@@ -134,7 +143,7 @@ function UsersTab() {
           <Table head={['User', 'Status', 'Role', 'Tests', 'Last login', 'Joined', 'Actions']} empty="No users match.">
             {data.items.map((u: any) => (
               <tr key={u.id}>
-                <td><b>{u.fullName || '—'}</b><div className="small muted">{u.email}{!u.verified && ' · unverified'}</div></td>
+                <td><b>{u.fullName || '—'}</b><div className="small muted">{u.email}{!u.verified && ' · unverified'}</div>{(u.phone || u.whatsappNumber) && <div className="small muted">{u.phone ? `Phone ${u.phone}` : ''}{u.phone && u.whatsappNumber ? ' · ' : ''}{u.whatsappNumber ? `WhatsApp ${u.whatsappNumber}` : ''}</div>}</td>
                 <td><span className={`tag ${u.status === 'suspended' ? 'tag-bad' : ''}`}>{u.status}</span></td>
                 <td>{u.role}</td><td>{u.tests}</td><td>{u.lastLoginAt ? timeAgo(u.lastLoginAt) : 'never'}</td><td>{formatDate(u.createdAt)}</td>
                 <td>
@@ -157,6 +166,61 @@ function UsersTab() {
 
 /* ---------------------------------------------------------------- tests */
 function TestsTab() {
+  const [view, setView] = useState<'person' | 'all'>('person');
+  return (
+    <div className="stack">
+      <div className="seg" role="group" aria-label="Test view">
+        <button className="chip" aria-pressed={view === 'person'} onClick={() => setView('person')}>By person</button>
+        <button className="chip" aria-pressed={view === 'all'} onClick={() => setView('all')}>Every test</button>
+      </div>
+      {view === 'person' ? <TestsByPerson /> : <AllTests />}
+    </div>
+  );
+}
+
+const RANGES = [['1d', 'Last 24 hours'], ['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['all', 'All time']] as const;
+
+function TestsByPerson() {
+  const [range, setRange] = useState<string>('7d');
+  const [sort, setSort] = useState('tests');
+  const [search, setSearch] = useState('');
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [open, setOpen] = useState<string | null>(null);
+  useEffect(() => { const t = setTimeout(() => { setQ(search); setPage(1); }, 300); return () => clearTimeout(t); }, [search]);
+  const { data, error } = useLoad<any>(`/api/admin/tests/by-user?range=${range}&sort=${sort}&page=${page}&pageSize=20&search=${encodeURIComponent(q)}`);
+  return (
+    <div className="stack">
+      <div className="row" style={{ gap: 10 }}>
+        <input className="input" style={{ maxWidth: 260 }} placeholder="Search name or email" aria-label="Search people" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <select className="input" style={{ maxWidth: 180 }} aria-label="Period" value={range} onChange={(e) => { setRange(e.target.value); setPage(1); }}>
+          {RANGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <select className="input" style={{ maxWidth: 190 }} aria-label="Sort by" value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}>
+          <option value="tests">Most tests first</option><option value="name">Name A to Z</option><option value="recent">Most recent first</option>
+        </select>
+      </div>
+      <Err msg={error} />
+      {!data ? <PageLoader /> : (
+        <>
+          <p className="small muted">{data.total} {data.total === 1 ? 'person' : 'people'} ran {data.totalTests} {data.totalTests === 1 ? 'test' : 'tests'} in this period.</p>
+          <Table head={['Person', 'Tests', 'Websites', 'Completed', 'Failed', 'Issues found', 'Last test']} empty="Nobody ran a test in this period.">
+            {data.items.flatMap((u: any) => [
+              <tr key={u.userId} style={{ cursor: 'pointer' }} onClick={() => setOpen(open === u.userId ? null : u.userId)}>
+                <td><b>{u.fullName}</b><br /><span className="small muted">{u.email}</span></td>
+                <td><b>{u.tests}</b></td><td>{u.sites}</td><td>{u.completed}</td><td>{u.failed}</td><td>{u.issues}</td><td className="small">{formatDate(u.lastTestAt)}</td>
+              </tr>,
+              ...(open === u.userId ? [<tr key={u.userId + '-sites'}><td colSpan={7} className="small"><b>Websites checked:</b> {u.topSites.map((t: any) => `${t.hostname} (${t.n})`).join(', ')}</td></tr>] : []),
+            ])}
+          </Table>
+          <Pager page={data.page} pageSize={data.pageSize} total={data.total} onPage={setPage} />
+        </>
+      )}
+    </div>
+  );
+}
+
+function AllTests() {
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
   const { data, error } = useLoad<any>(`/api/admin/tests?page=${page}&pageSize=20&status=${status}`);

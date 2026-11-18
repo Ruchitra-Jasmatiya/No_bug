@@ -38,7 +38,7 @@ export function App() {
     <Suspense fallback={<PageLoader />}>
       <Routes>
         <Route element={<Layout />}>
-          <Route index element={<Home />} />
+          <Route index element={<RequireAuth><Home /></RequireAuth>} />
           <Route path="signup" element={<GuestOnly><Signup /></GuestOnly>} />
           <Route path="verify-email" element={<GuestOnly><VerifyEmail /></GuestOnly>} />
           <Route path="login" element={<GuestOnly><Login /></GuestOnly>} />

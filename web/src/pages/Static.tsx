@@ -34,7 +34,7 @@ export default function Static({ page }: { page: Page }) {
           <li><b>Safe by design.</b> Tests are passive and non-destructive, and private network addresses are blocked.</li>
         </ul>
         <H>What it tests</H>
-        <p>Connectivity, page loading, console errors, functional behaviour, layout, responsive design, performance, accessibility, SEO, passive security checks, links and resources, API calls, visual changes and PWA signals.</p>
+        <p>The front end of a website: connectivity, page loading, console errors, functional behaviour, layout, responsive design, pagination, internal pages and URLs, links and images, performance, accessibility, SEO, passive security checks, visual changes and PWA signals. We do not test or change your backend.</p>
         <Link className="btn btn-yellow" to="/signup">Create a free account</Link>
       </Shell>
     );
@@ -49,11 +49,15 @@ export default function Static({ page }: { page: Page }) {
         <p>Do not use the service to attack, overload or probe systems you do not control, to bypass access controls, or to test internal networks. We block private and internal addresses and may suspend accounts that abuse the service.</p>
         <H>3. Results are informational</H>
         <p>Reports list what was detected in the tests performed. They do not certify that a website is secure, accessible or free of bugs. AI-generated explanations may be incomplete or wrong; verify before you change production systems.</p>
-        <H>4. Your account</H>
-        <p>Keep your credentials private. We may suspend or remove accounts that break these terms. You can stop using the service at any time.</p>
-        <H>5. Availability and liability</H>
+        <H>4. Your account and verification</H>
+        <p>To create an account you give your name, email, a contact number and a WhatsApp number that you own or are allowed to use. We send one-time verification codes to that WhatsApp number. Keep your password and your codes private and never share a code with anyone. You are responsible for activity on your account.</p>
+        <H>5. Fair use</H>
+        <p>We limit how many sign-up attempts, codes and tests an account or network can make so that the service stays available for everyone. Repeated failed sign-ins slow down automatically. We may suspend accounts that abuse these limits.</p>
+        <H>6. Suspension and ending use</H>
+        <p>We may suspend or remove accounts that break these terms. You can stop using the service at any time and ask us to delete your data.</p>
+        <H>7. Availability and liability</H>
         <p>The service is provided “as is”. To the extent allowed by law we are not liable for indirect or consequential losses arising from its use.</p>
-        <H>6. Changes</H>
+        <H>8. Changes</H>
         <p>We may update these terms; continued use means you accept the updated version.</p>
       </Shell>
     );
@@ -64,13 +68,13 @@ export default function Static({ page }: { page: Page }) {
         <p className="small muted">This is a starter template written for the project. Have it reviewed by a lawyer and adapted to your jurisdiction before launch.</p>
         <H>What we collect</H>
         <ul>
-          <li><b>Account data:</b> name, email, optional phone, and a password handled by our authentication provider (we never store plain-text passwords).</li>
+          <li><b>Account data:</b> name, email (kept for our records), contact number, WhatsApp number, and a password handled by our authentication provider (we never store plain-text passwords).</li>
           <li><b>Test data:</b> the URLs you test, results, logs, screenshots and the reports built from them.</li>
           <li><b>Security data:</b> sign-in attempts (time, IP address, browser) used to detect abuse and protect accounts.</li>
           <li><b>Chat data:</b> your conversations with BUGSY.</li>
         </ul>
         <H>How we use it</H>
-        <p>To run your tests, show your reports, secure the service and send account emails such as verification codes. We do not sell your data.</p>
+        <p>To run your tests, show your reports, secure the service and send verification codes to your WhatsApp number through our messaging provider (Meta WhatsApp Business or Twilio). We use your email for our records and account notices. We do not sell your data.</p>
         <H>AI processing</H>
         <p>When AI is enabled, selected findings and BUGSY questions are sent to the configured AI provider to produce explanations. Secrets and credentials found in test data are redacted before being sent.</p>
         <H>Access and retention</H>

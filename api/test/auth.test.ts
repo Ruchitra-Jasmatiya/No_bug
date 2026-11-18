@@ -34,7 +34,7 @@ suite('authentication flows', () => {
   });
 
   const post = (path: string, body: unknown, headers: Record<string, string> = {}) => api.call('POST', path, { body, headers });
-  const signupBody = (email: string, over: Record<string, unknown> = {}) => ({ fullName: 'Ada Lovelace', email, password: PW, confirmPassword: PW, termsAccepted: true, ...over });
+  const signupBody = (email: string, over: Record<string, unknown> = {}) => ({ fullName: 'Ada Lovelace', email, password: PW, confirmPassword: PW, termsAccepted: true, phone: '+919876543210', whatsapp: `+9198${String(Math.floor(Math.random() * 1e8)).padStart(8, '0')}`, ...over });
   async function register(over: Record<string, unknown> = {}): Promise<string> {
     const email = uniq();
     emails.push(email);
@@ -63,7 +63,9 @@ suite('authentication flows', () => {
       ['terms not accepted', { termsAccepted: false }, /Terms/],
       ['invalid email', { email: 'not-an-email' }, /valid email/],
       ['short name', { fullName: 'A' }, /full name/],
-      ['bad phone', { phone: 'abc' }, /phone/],
+      ['bad phone', { phone: 'abc' }, /contact number/],
+      ['bad whatsapp', { whatsapp: '98765' }, /WhatsApp number/],
+      ['whatsapp without country code', { whatsapp: '09876543210' }, /country code/],
     ];
     for (const [name, over, re] of bad) {
       it(`rejects ${name}`, async () => {
@@ -72,11 +74,12 @@ suite('authentication flows', () => {
         assert.match(r.body.error.message, re);
       });
     }
-    it('accepts an optional phone number and stores the profile, but the account is not yet verified', async () => {
-      const email = await register({ phone: '+91 98765 43210' });
+    it('stores the contact and WhatsApp numbers in international form, but the account is not yet verified', async () => {
+      const email = await register({ phone: '+91 98765 43210', whatsapp: '+91 98765-00001' });
       const p = (await api.pool.query('select * from public.profiles where lower(email) = $1', [email])).rows[0];
       assert.equal(p.full_name, 'Ada Lovelace');
-      assert.equal(p.phone, '+91 98765 43210');
+      assert.equal(p.phone, '+919876543210');
+      assert.equal(p.whatsapp_number, '+919876500001');
       assert.equal(p.email_verified_at, null);
       assert.ok(p.terms_accepted_at);
     });
@@ -214,7 +217,7 @@ suite('authentication flows', () => {
       const count = api.mail.sent.length;
       const r = await post('/api/auth/signup', signupBody(email, { fullName: 'Someone Else', password: 'Another-pass99', confirmPassword: 'Another-pass99' }));
       assert.equal(r.status, 202);
-      assert.equal(r.body.message, 'If that email can be used, a 6-digit code is on its way.');
+      assert.equal(r.body.message, 'If that account can be used, a 6-digit code is on its way to its WhatsApp number.');
       assert.equal(api.mail.sent.length, count + 1);
       assert.match(api.mail.lastTo(email)!.subject, /already have/);
       // the original account is untouched
@@ -295,7 +298,7 @@ suite('authentication flows', () => {
       assert.equal(wrong.status, 401);
       assert.equal(ghost.status, 401);
       assert.deepEqual({ ...wrong.body.error, details: undefined }, { ...ghost.body.error, details: undefined });
-      assert.equal(wrong.body.error.message, 'Incorrect email or password.');
+      assert.equal(wrong.body.error.message, 'Incorrect email, phone number or password.');
     });
 
     it('records every attempt in login_events (success, failure, unknown account) without storing passwords', async () => {
@@ -308,33 +311,45 @@ suite('authentication flows', () => {
       assert.ok(!JSON.stringify(events).includes(PW));
     });
 
-    it('applies progressive delays after repeated failures, without permanently locking the account', async () => {
+    it('counts down wrong attempts, locks for one minute at the limit, then lets the user back in', async () => {
       await resetThrottles();
       const email = await verified();
-      const results: number[] = [];
-      for (let i = 0; i < 7; i++) results.push((await post('/api/auth/login', { email, password: 'Wrong-password1' })).status);
-      assert.deepEqual(results.slice(0, 5), [401, 401, 401, 401, 401]);
-      assert.equal(results[5], 429, 'delay kicks in after repeated failures');
+      const left: Array<number | undefined> = [];
+      const statuses: number[] = [];
+      for (let i = 0; i < 6; i++) {
+        const r = await post('/api/auth/login', { email, password: 'Wrong-password1' });
+        statuses.push(r.status);
+        left.push(r.body.error.details?.attemptsLeft);
+      }
+      assert.deepEqual(statuses, [401, 401, 401, 401, 429, 429], 'the 5th wrong try locks the account');
+      assert.deepEqual(left, [4, 3, 2, 1, 0, 0]);
 
-      // while delayed, even the CORRECT password is refused (stops brute force) ...
+      // while locked, even the CORRECT password is refused (stops brute force) and a wait time is returned
       const blocked = await post('/api/auth/login', { email, password: PW });
       assert.equal(blocked.status, 429);
       assert.ok(Number(blocked.headers.get('retry-after')) >= 1);
-      // ... but the delay expires by itself: nothing is locked permanently
-      await api.pool.query(`update public.login_events set created_at = created_at - interval '20 minutes' where lower(email) = $1`, [email]);
-      const ok = await post('/api/auth/login', { email, password: PW });
-      assert.equal(ok.status, 200);
-      // and a successful sign-in resets the failure counter
-      assert.equal((await post('/api/auth/login', { email, password: 'Wrong-password1' })).status, 401);
+      assert.ok(blocked.body.error.details.lockedForSec >= 1);
+
+      // the lock lapses by itself after the window: nothing is locked permanently
+      await api.pool.query(`update public.login_events set created_at = created_at - interval '70 seconds' where lower(email) = $1`, [email]);
+      assert.equal((await post('/api/auth/login', { email, password: PW })).status, 200);
+      // a successful sign-in resets the counter
+      const again = await post('/api/auth/login', { email, password: 'Wrong-password1' });
+      assert.equal(again.status, 401);
+      assert.equal(again.body.error.details.attemptsLeft, 4);
     });
 
-    it('flags that a bot challenge is needed once failures pile up', async () => {
+    it('a hacker cycling through many accounts from one address is stopped by the per-address limit', async () => {
       await resetThrottles();
+      await post('/api/auth/login', { email: 'probe@example.com', password: 'Wrong-password1' });
+      const ip = (await api.pool.query(`select ip from public.login_events order by id desc limit 1`)).rows[0].ip;
+      await api.pool.query(
+        `insert into public.login_events (email, success, reason, ip) select 'x' || g || '@example.com', false, 'bad_password', $1 from generate_series(1, 30) g`,
+        [ip],
+      );
       const email = await verified();
-      let last: any;
-      for (let i = 0; i < 5; i++) last = await post('/api/auth/login', { email, password: 'Wrong-password1' });
-      assert.equal(last.status, 401);
-      assert.equal(last.body.error.details.captchaRequired, true);
+      const r = await post('/api/auth/login', { email, password: PW });
+      assert.equal(r.status, 429, 'even a correct password is refused from an address that is spraying accounts');
     });
 
     it('blocks suspended accounts at login and revokes the session', async () => {
@@ -346,7 +361,7 @@ suite('authentication flows', () => {
     });
 
     it('validates the body', async () => {
-      assert.equal((await post('/api/auth/login', { email: 'x', password: 'y' })).status, 400);
+      assert.equal((await post('/api/auth/login', { email: '', password: 'y' })).status, 400);
       assert.equal((await post('/api/auth/login', { email: uniq() })).status, 400);
       assert.equal((await post('/api/auth/login', 'not json')).status, 400);
     });

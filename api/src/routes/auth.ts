@@ -107,9 +107,9 @@ export function createAuthRouter(deps: { auth: AuthService; pool: pg.Pool; authn
 
   router.get('/me', authn.requireAuth, ah(async (req, res) => {
     const u = currentUser(req);
-    const { rows } = await pool.query('select id, email, full_name, phone, created_at, last_login_at from public.profiles where id = $1', [u.id]);
+    const { rows } = await pool.query('select id, email, full_name, phone, whatsapp_number, created_at, last_login_at from public.profiles where id = $1', [u.id]);
     const p = rows[0];
-    res.json({ user: { id: p.id, email: p.email, fullName: p.full_name, phone: p.phone, role: u.role, emailVerified: true, createdAt: p.created_at, lastLoginAt: p.last_login_at } });
+    res.json({ user: { id: p.id, email: p.email, fullName: p.full_name, phone: p.phone, whatsappNumber: p.whatsapp_number, role: u.role, emailVerified: true, createdAt: p.created_at, lastLoginAt: p.last_login_at } });
   }));
 
   return router;

@@ -39,6 +39,7 @@ export function createAdminRouter(deps: { admin: AdminService; auth: Authenticat
     await admin.setUserRole(actor(req), idOr404(req.params.id), roleBody.parse(req.body).role);
     res.json({ ok: true });
   }));
+  router.get('/tests/by-user', ah(async (req, res) => res.json(await admin.listTestsByUser({ range: str(req.query.range), search: str(req.query.search), sort: str(req.query.sort), page: req.query.page, pageSize: req.query.pageSize }))));
   router.get('/tests', ah(async (req, res) => res.json(await admin.listTests({ status: str(req.query.status), page: req.query.page, pageSize: req.query.pageSize }))));
   router.get('/security/events', ah(async (req, res) => res.json(await admin.listSecurityEvents({ acknowledged: str(req.query.acknowledged), page: req.query.page, pageSize: req.query.pageSize }))));
   router.post('/security/events/:id/acknowledge', ah(async (req, res) => {

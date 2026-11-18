@@ -21,7 +21,23 @@ interface AiBlock {
   effort?: string;
 }
 
-function Issue({ bug, hostname, onAsk }: { bug: BugDTO; hostname: string; onAsk: (b: BugDTO) => void }) {
+/** One issue can be found at several screen sizes or pages. Show it once, with where it happens. */
+interface IssueGroup { bug: BugDTO; where: string[]; count: number }
+function baseTitle(t: string): string { return t.replace(/\s*\([^()]*\)\s*$/, '').trim(); }
+function groupBugs(bugs: BugDTO[]): IssueGroup[] {
+  const map = new Map<string, IssueGroup>();
+  for (const b of bugs) {
+    const key = `${b.category}|${b.severity}|${baseTitle(b.title).toLowerCase()}`;
+    const m = /\(([^()]*)\)\s*$/.exec(b.title);
+    const where = m ? m[1]! : (b.affectedUrl ?? '');
+    const g = map.get(key);
+    if (!g) map.set(key, { bug: { ...b, title: baseTitle(b.title) }, where: where ? [where] : [], count: 1 });
+    else { g.count++; if (where && !g.where.includes(where)) g.where.push(where); }
+  }
+  return [...map.values()];
+}
+
+function Issue({ bug, hostname, onAsk, where = [], count = 1 }: { bug: BugDTO; hostname: string; onAsk: (b: BugDTO) => void; where?: string[]; count?: number }) {
   const [open, setOpen] = useState(false);
   const toast = useToast();
   const ai = bug.aiAnalysis as AiBlock | null;
@@ -40,7 +56,7 @@ function Issue({ bug, hostname, onAsk }: { bug: BugDTO; hostname: string; onAsk:
         <SeverityBadge severity={bug.severity} />
         <span className="grow" style={{ textAlign: 'left' }}>
           <b>{bug.title}</b>
-          <span className="small muted" style={{ display: 'block' }}>{bug.issueCode} · {CATEGORY_LABEL[bug.category] ?? bug.category} · {bug.confidence}</span>
+          <span className="small muted" style={{ display: 'block' }}>{bug.issueCode} · {CATEGORY_LABEL[bug.category] ?? bug.category} · {bug.confidence}{count > 1 ? ` · found ${count} times` : ''}</span>
         </span>
         <ChevronDown size={18} className={open ? 'rot' : ''} aria-hidden />
       </button>
@@ -49,6 +65,7 @@ function Issue({ bug, hostname, onAsk }: { bug: BugDTO; hostname: string; onAsk:
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden' }}>
             <div className="issue-body stack" style={{ ['--gap' as string]: '14px' }}>
               <p style={{ margin: 0 }}>{bug.description}</p>
+              {where.length > 1 && <p className="small" style={{ margin: 0 }}><b>Where:</b> {where.join(' · ')}</p>}
               {bug.affectedUrl && <p className="small" style={{ margin: 0, wordBreak: 'break-all' }}><b>Affected:</b> <span className="mono">{bug.affectedUrl}</span></p>}
               <div>
                 <p className="label" style={{ marginBottom: 4 }}>Recommended fix</p>
@@ -136,6 +153,8 @@ export default function Report() {
   }, [report]);
   const visible = useMemo(() => (report?.bugs ?? []).filter((b) => (!sev || b.severity === sev) && (!cat || b.category === cat)), [report, sev, cat]);
 
+  const groups = useMemo(() => groupBugs(visible), [visible]);
+
   if (error) {
     return (
       <div className="wrap-narrow page"><div className="empty"><Mascot size={64} mood="alert" /><h1>Report unavailable</h1><p className="muted">{error.message}</p><Link className="btn btn-yellow" to="/dashboard">Go to dashboard</Link></div></div>
@@ -172,7 +191,11 @@ export default function Report() {
   };
   const askAbout = (b: BugDTO) => ask(`Explain ${b.issueCode} (${b.title}) and walk me through fixing it.`);
 
-  const mood = j.status === 'completed' && total === 0 ? 'happy' : total > 0 ? 'alert' : 'idle';
+  // Honest coverage: tests that failed or timed out are missing results, so the report must never read as "clean".
+  const didNotFinish = report.modules.filter((m) => m.status === 'failed' || m.status === 'blocked');
+  const finished = report.modules.filter((m) => m.status === 'completed').length;
+  const incomplete = didNotFinish.length > 0;
+  const mood = j.status === 'completed' && total === 0 && !incomplete ? 'happy' : total > 0 ? 'alert' : 'idle';
 
   return (
     <div className="wrap page">
@@ -211,19 +234,19 @@ export default function Report() {
         </section>
         <section className="card" aria-label="Check results">
           <h2 style={{ marginBottom: 14 }}>Checks performed</h2>
-          <BarList color="var(--yellow-300)" items={[
-            { label: 'Passed', value: report.summary.counts.pass },
-            { label: 'Failed', value: report.summary.counts.fail },
-            { label: 'Warnings', value: report.summary.counts.warning },
-            { label: 'Info', value: report.summary.counts.info },
-            { label: 'Not run', value: report.summary.counts.skipped + report.summary.counts.blocked },
+          <BarList items={[
+            { label: 'Passed', color: 'var(--st-pass)', value: report.summary.counts.pass },
+            { label: 'Failed', color: 'var(--st-fail)', value: report.summary.counts.fail },
+            { label: 'Warnings', color: 'var(--st-warn)', value: report.summary.counts.warning },
+            { label: 'Info', color: 'var(--st-info)', value: report.summary.counts.info },
+            { label: 'Not run', color: 'var(--st-idle)', value: report.summary.counts.skipped + report.summary.counts.blocked },
           ]} />
         </section>
       </div>
 
       <section style={{ marginTop: 34 }} aria-label="Issues">
         <div className="row spread" style={{ marginBottom: 12 }}>
-          <h2>Issues ({visible.length}{visible.length !== total ? ` of ${total}` : ''})</h2>
+          <h2>Issues ({groups.length}{visible.length !== groups.length ? ` · ${visible.length} occurrences` : ''})</h2>
         </div>
         {total > 0 && (
           <div className="stack" style={{ ['--gap' as string]: '10px', marginBottom: 14 }}>
@@ -237,16 +260,21 @@ export default function Report() {
             </div>
           </div>
         )}
-        {total === 0 ? (
+        {total === 0 && incomplete ? (
+          <div className="card empty"><Mascot size={56} mood="alert" /><h3>This report is incomplete, so it cannot show the site as clean.</h3><p className="muted">{didNotFinish.length} test{didNotFinish.length === 1 ? '' : 's'} did not finish ({didNotFinish.map((m) => m.label).join(', ')}). Run the test again; if it repeats, check the target site is not blocking automated visits.</p></div>
+        ) : total === 0 ? (
           <div className="card empty"><Mascot size={56} mood="happy" /><h3>No issues detected in the tests performed.</h3><p className="muted">That is not a guarantee the site has no bugs. Review the tests performed below to see exactly what was covered.</p></div>
         ) : visible.length === 0 ? (
           <p className="muted">No issues match these filters.</p>
         ) : (
-          <ul className="issues">{visible.map((b) => <Issue key={b.id} bug={b} hostname={j.hostname} onAsk={askAbout} />)}</ul>
+          <ul className="issues">{groups.map((g) => <Issue key={g.bug.id} bug={g.bug} where={g.where} count={g.count} hostname={j.hostname} onAsk={askAbout} />)}</ul>
         )}
       </section>
 
       <section style={{ marginTop: 34 }} aria-label="Tests performed">
+        <div className={`notice ${incomplete ? '' : 'notice-ok'}`} style={{ marginBottom: 14 }} role="status">
+          <span><b>Coverage: {finished} of {report.modules.length} tests finished.</b>{incomplete ? ` ${didNotFinish.length} did not finish (${didNotFinish.map((m) => m.label).join(', ')}), so this report may be missing issues. Run it again to confirm.` : ' Every test that applies to this site ran to completion.'}</span>
+        </div>
         <h2 style={{ marginBottom: 4 }}>Tests performed</h2>
         <p className="small muted">Every test that ran on this site, its real outcome and the checks behind it. Select a test to see its individual checks.</p>
         <TestActivity jobId={id} jobStatus={j.status} modules={report.modules} />

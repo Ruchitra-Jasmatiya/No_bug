@@ -37,6 +37,8 @@ export function testApiConfig(over: Partial<ApiConfig> = {}): ApiConfig {
     SUPABASE_JWT_SECRET: JWT_SECRET,
     CORS_ORIGINS: 'http://localhost:5173',
     TRUST_PROXY: 0,
+    LOGIN_MAX_ATTEMPTS: 5,
+    LOGIN_WINDOW_SEC: 60,
     SESSION_SECRET: 'test-session-secret-test-session-secret-0123456789',
     authProvider: 'local',
     databaseUrl: DB_URL ?? '',
@@ -66,13 +68,13 @@ export interface TestApi {
   cleanup(): Promise<void>;
 }
 
-export async function startApi(opts: { policy?: NetPolicy; resolver?: Resolver; ai?: import('@nba/shared/ai').AiProvider | null; config?: Partial<ApiConfig> } = {}): Promise<TestApi> {
+export async function startApi(opts: { policy?: NetPolicy; resolver?: Resolver; ai?: import('@nba/shared/ai').AiProvider | null; config?: Partial<ApiConfig>; whatsapp?: import('../src/whatsapp/sender.js').WhatsAppSender } = {}): Promise<TestApi> {
   const pool = new pg.Pool({ connectionString: DB_URL, max: 8 });
   const queue = new FakeQueue();
   const mail = new MemoryTransport();
   const policy = opts.policy ?? { allowPrivateTargets: false };
   const resolver: Resolver = opts.resolver ?? (async () => [{ address: '93.184.216.34', family: 4 }]);
-  const { app } = createApp({ config: testApiConfig(opts.config), pool, queue, logger: createLogger('silent'), policy, resolver, emailTransport: mail, ai: opts.ai ?? null });
+  const { app } = createApp({ config: testApiConfig(opts.config), pool, queue, logger: createLogger('silent'), policy, resolver, emailTransport: mail, ai: opts.ai ?? null, whatsapp: opts.whatsapp });
   const server = await new Promise<import('node:http').Server>((resolve) => {
     const s = app.listen(0, '127.0.0.1', () => resolve(s));
   });

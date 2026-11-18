@@ -40,23 +40,40 @@ export const emailSchema = z
   .max(254, 'Please enter a valid email address.')
   .email('Please enter a valid email address.');
 
-const phoneSchema = z
-  .string()
-  .trim()
-  .max(30)
-  .optional()
-  .transform((v) => (v ? v : undefined))
-  .refine((v) => v === undefined || /^\+?[0-9][0-9 ()\-]{6,19}$/.test(v), 'Please enter a valid phone number.');
+/** "+91 98765-43210" -> "+919876543210". Returns null unless the result is a valid international (E.164) number. */
+export function normalizePhone(input: string): string | null {
+  let v = input.trim().replace(/[\s().-]/g, '');
+  if (v.startsWith('00')) v = `+${v.slice(2)}`;
+  return /^\+[1-9]\d{7,14}$/.test(v) ? v : null;
+}
+
+const internationalNumber = (label: string) =>
+  z
+    .string({ required_error: `Please enter your ${label}.` })
+    .trim()
+    .min(1, `Please enter your ${label}.`)
+    .max(30, `Please enter a valid ${label}.`)
+    .transform((v, ctx) => {
+      const n = normalizePhone(v);
+      if (!n) {
+        ctx.addIssue({ code: 'custom', message: `Enter your ${label} with the country code, for example +91 98765 43210.` });
+        return z.NEVER;
+      }
+      return n;
+    });
+const phoneSchema = internationalNumber('contact number');
+const whatsappSchema = internationalNumber('WhatsApp number');
 
 const OTP_PURPOSES = ['signup', 'password_reset'] as const;
 export type OtpPurpose = (typeof OTP_PURPOSES)[number];
-export const otpCodeSchema = z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from your email.');
+export const otpCodeSchema = z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from WhatsApp.');
 
 export const signupSchema = z
   .object({
     fullName: z.string().trim().min(2, 'Please enter your full name.').max(80, 'Name is too long.'),
     email: emailSchema,
     phone: phoneSchema,
+    whatsapp: whatsappSchema,
     password: z.string().max(128, 'Password must be at most 128 characters.'),
     confirmPassword: z.string(),
     termsAccepted: z.literal(true, { errorMap: () => ({ message: 'You must accept the Terms and Privacy Policy to continue.' }) }),
@@ -71,7 +88,13 @@ export type SignupInput = z.infer<typeof signupSchema>;
 export const verifyOtpSchema = z.object({ email: emailSchema, code: otpCodeSchema, purpose: z.enum(OTP_PURPOSES).default('signup') });
 export const resendOtpSchema = z.object({ email: emailSchema, purpose: z.enum(OTP_PURPOSES).default('signup') });
 export const loginSchema = z.object({
-  email: emailSchema,
+  /** An email address or a phone / WhatsApp number (field name kept for compatibility). */
+  email: z
+    .string({ required_error: 'Please enter your email or phone number.' })
+    .trim()
+    .min(1, 'Please enter your email or phone number.')
+    .max(254, 'Please enter your email or phone number.')
+    .transform((v) => (v.includes('@') ? v.toLowerCase() : normalizePhone(v) ?? v)),
   password: z.string().min(1, 'Please enter your password.').max(128, 'Incorrect email or password.'),
 });
 export const forgotPasswordSchema = z.object({ email: emailSchema });

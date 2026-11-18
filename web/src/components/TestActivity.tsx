@@ -236,7 +236,7 @@ export function TestActivity({ jobId, jobStatus, modules, logs, live }: Props) {
               <span className="small muted">{shownLogs.length} entries</span>
             </div>
             <div className="logs" ref={logBox} role="log" aria-live="off" tabIndex={0}>
-              {shownLogs.length === 0 && <div className="empty-note" style={{ color: '#98a58a' }}>No log entries yet.</div>}
+              {shownLogs.length === 0 && <div className="empty-note" style={{ color: '#94a3b8' }}>No log entries yet.</div>}
               {shownLogs.map((l) => (
                 <div key={l.id} className={`logrow log-${l.level}`}>
                   <time>{new Date(l.createdAt).toLocaleTimeString([], { hour12: false })}</time>

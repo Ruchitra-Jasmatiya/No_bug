@@ -42,7 +42,7 @@ export function Legend({ counts }: { counts: Record<string, number> }) {
 }
 
 /** Horizontal bars for category counts. */
-export function BarList({ items, color = 'var(--sage)' }: { items: Array<{ label: string; value: number }>; color?: string }) {
+export function BarList({ items, color = 'var(--sage)' }: { items: Array<{ label: string; value: number; color?: string }>; color?: string }) {
   const max = Math.max(1, ...items.map((i) => i.value));
   if (items.length === 0) return <p className="muted small">No data yet.</p>;
   return (
@@ -50,8 +50,8 @@ export function BarList({ items, color = 'var(--sage)' }: { items: Array<{ label
       {items.map((i) => (
         <div key={i.label} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 36px', alignItems: 'center', gap: 10 }}>
           <span className="small" style={{ textTransform: 'capitalize' }}>{i.label}</span>
-          <div style={{ background: 'var(--cream-2)', height: 14, borderRadius: 7, overflow: 'hidden', border: '1.5px solid var(--sage-dark)' }}>
-            <div style={{ width: `${(i.value / max) * 100}%`, height: '100%', background: color, transition: 'width .6s var(--ease)' }} />
+          <div style={{ background: 'var(--cream-2)', height: 14, borderRadius: 7, overflow: 'hidden', border: '1px solid var(--line-strong)' }}>
+            <div style={{ width: `${(i.value / max) * 100}%`, height: '100%', background: i.color ?? color, transition: 'width .6s var(--ease)' }} />
           </div>
           <b className="small" style={{ textAlign: 'right' }}>{i.value}</b>
         </div>

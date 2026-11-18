@@ -11,6 +11,7 @@ import { type EmailTransport, ResendTransport, UnconfiguredTransport } from './e
 import { type IdentityProvider } from './auth/identity.js';
 import { LocalIdentity } from './auth/local-identity.js';
 import { OtpService } from './auth/otp.js';
+import { buildWhatsAppSender, type WhatsAppSender } from './whatsapp/sender.js';
 import { AuthService } from './auth/service.js';
 import { SupabaseIdentity } from './auth/supabase-identity.js';
 import { Throttle } from './auth/throttle.js';
@@ -39,6 +40,7 @@ export interface AppDeps {
   /** Injected by tests. Production builds both from the configuration. */
   identity?: IdentityProvider;
   emailTransport?: EmailTransport;
+  whatsapp?: WhatsAppSender;
   /** Null / undefined = AI not configured (BUGSY chat reports that honestly). */
   ai?: AiProvider | null;
 }
@@ -100,9 +102,12 @@ export function createApp(deps: AppDeps): { app: Express; jobs: JobService; auth
     identity,
     otp: new OtpService(pool, config.SESSION_SECRET),
     email: emailService,
+    whatsapp: deps.whatsapp ?? buildWhatsAppSender(config, logger),
     throttle: new Throttle(pool),
     logger,
     monitor,
+    loginMaxAttempts: config.LOGIN_MAX_ATTEMPTS,
+    loginWindowSec: config.LOGIN_WINDOW_SEC,
   });
   const ai = deps.ai ?? null;
   const chat = new ChatService(pool, ai, logger);
